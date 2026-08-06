@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Splash logo: white "O" ring (Okane) with a small grass-green coin.
+     On Android 12+ the system masks this into a circle, so everything is
+     kept inside the central ~66dp safe zone of the 108dp canvas. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- "O" ring: a full circle drawn as two arcs, stroked, not filled -->
+    <path
+        android:pathData="M 32,54 a 22,22 0 1,1 44,0 a 22,22 0 1,1 -44,0"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="8"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+
+    <!-- Grass-green coin overlapping the ring's bottom-right; the deep navy
+         outline separates it from the white ring underneath -->
+    <path
+        android:pathData="M 61,68 a 9,9 0 1,1 18,0 a 9,9 0 1,1 -18,0"
+        android:fillColor="@color/grass_green"
+        android:strokeColor="@color/deep_navy"
+        android:strokeWidth="4" />
+</vector>

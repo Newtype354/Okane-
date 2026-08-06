@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <style name="Theme.Okane" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <!-- Startup-only theme: styles the system splash window shown while the
+         app process is starting (mandatory on Android 12+, back-ported below
+         by the core-splashscreen library). Once the activity is ready,
+         postSplashScreenTheme swaps back to the normal theme. -->
+    <style name="Theme.Okane.Starting" parent="Theme.SplashScreen">
+        <!-- Same flat sky blue as the illustration-led Compose palette. -->
+        <item name="windowSplashScreenBackground">@color/sky_blue</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash_logo</item>
+        <item name="postSplashScreenTheme">@style/Theme.Okane</item>
+    </style>
+</resources>

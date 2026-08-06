@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Android 13+: needed for Okane to post its OWN notifications later
+         (e.g. "transaction recorded"). Requested at runtime in MainActivity.
+         NOT related to reading other apps' notifications. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <application
+        android:name=".OkaneApp"
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Okane">
+        <!-- Theme.Okane.Starting = splash theme; MainActivity switches back to
+             Theme.Okane via installSplashScreen() + postSplashScreenTheme. -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.Okane.Starting">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- The notification listener. The system (and only the system) binds
+             to it after the user enables Notification access for Okane:
+             android:permission restricts binding to holders of
+             BIND_NOTIFICATION_LISTENER_SERVICE, which is system-only.
+             android:label is the name shown in the settings toggle list. -->
+        <service
+            android:name=".service.OkaneNotificationListenerService"
+            android:exported="false"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <!-- THROWAWAY — Phase 0 latency spike. Remove with the spike package.
+             exported="true" is required: the launcher (a different app) sends
+             the APPWIDGET_UPDATE broadcast to this receiver. -->
+        <receiver
+            android:name=".spike.SpikeLatencyWidgetReceiver"
+            android:exported="true"
+            android:label="Okane spike">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/spike_widget_info" />
+        </receiver>
+    </application>
+
+</manifest>

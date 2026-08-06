@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Native/system splash equivalents of the Compose brand tokens. -->
+    <color name="sky_blue">#FF0365AD</color>
+    <color name="grass_green">#FF8FAA5D</color>
+    <color name="deep_navy">#FF0D171E</color>
+    <color name="white">#FFFFFFFF</color>
+</resources>
