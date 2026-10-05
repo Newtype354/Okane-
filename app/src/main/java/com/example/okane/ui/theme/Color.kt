@@ -2,71 +2,92 @@ package com.example.okane.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Illustration-led brand palette. Hex values live here; screens consume
-// Material color roles except for asset-specific SkyBlue and finance semantics.
-val SkyBlue = Color(0xFF0365AD)
+// Calm palette: warm paper neutrals, a sage brand colour and four soft pastel
+// families borrowed from stones, sky, lavender and morning light. Hex values
+// live here; screens consume Material roles or the named accents below.
+//
+// Every text pairing was checked against WCAG AA (4.5:1): ink on paper 15:1,
+// muted text on paper 5.1:1, sage on white 4.9:1, clay on white 4.7:1.
+
 val White = Color(0xFFFFFFFF)
-val DeepNavy = Color(0xFF0D171E)
 
+/** Page background: warm off-white, never pure white, so white cards lift off it. */
+val Paper = Color(0xFFFAFAF7)
+
+/** Soft stone grey used for hero cards and illustration backdrops. */
+val Stone = Color(0xFFF3F2EE)
+val StoneDeep = Color(0xFFE9E7E1)
+
+val Ink = Color(0xFF1E2420)
+val InkMuted = Color(0xFF676D68)
+val Hairline = Color(0xFFEBEAE5)
+
+// Brand: sage green.
+val Sage = Color(0xFF4E7A5D)
+val SageSoft = Color(0xFF8DB59A)
+val SageMist = Color(0xFFE3EEE5)
+val SageInk = Color(0xFF1F3B2A)
+
+// Pastel families: container + accent + ink. Used by tiles and chips.
+val Mist = Color(0xFFEAF1FA)
+val MistAccent = Color(0xFF5B8BCB)
+val MistInk = Color(0xFF2F5F9A)
+
+val Lavender = Color(0xFFF1EEFA)
+val LavenderAccent = Color(0xFF8C7BC9)
+val LavenderInk = Color(0xFF5E4FA0)
+
+val Peach = Color(0xFFFCF1E6)
+val PeachAccent = Color(0xFFE39A55)
+val PeachInk = Color(0xFF8A4F1C)
+
+val Mint = Color(0xFFEAF3EC)
+val MintAccent = Color(0xFF6DA37E)
+
+// Illustration tones for the stacked stones.
+val PebbleLight = Color(0xFFF1F0EC)
+val PebbleMid = Color(0xFFDAD8D2)
+val PebbleShadow = Color(0xFFC4C2BB)
+val Leaf = Color(0xFF7FAF86)
+val LeafDeep = Color(0xFF5E9468)
+
+internal val LightPrimary = Sage
 internal val LightOnPrimary = White
-internal val LightPrimaryContainer = Color(0xFFD6ECFA)
-internal val LightOnPrimaryContainer = Color(0xFF003A63)
-internal val LightSecondary = Color(0xFF8FAA5D)
-internal val LightOnSecondary = Color(0xFF1F3100)
-internal val LightSecondaryContainer = Color(0xFFE5F0CF)
-internal val LightOnSecondaryContainer = Color(0xFF263600)
-internal val LightTertiary = Color(0xFFD98FA8)
+internal val LightPrimaryContainer = SageMist
+internal val LightOnPrimaryContainer = SageInk
+internal val LightSecondary = MistInk
+internal val LightOnSecondary = White
+internal val LightSecondaryContainer = Mist
+internal val LightOnSecondaryContainer = Color(0xFF1B3657)
+internal val LightTertiary = LavenderInk
 internal val LightOnTertiary = White
-internal val LightTertiaryContainer = Color(0xFFF8DCE5)
-internal val LightOnTertiaryContainer = Color(0xFF4A1F30)
-internal val LightBackground = Color(0xFFF8F6F0)
-internal val LightOnBackground = Color(0xFF17212A)
+internal val LightTertiaryContainer = Lavender
+internal val LightOnTertiaryContainer = Color(0xFF2E2558)
+internal val LightBackground = Paper
+internal val LightOnBackground = Ink
 internal val LightSurface = White
-internal val LightOnSurface = LightOnBackground
-internal val LightSurfaceVariant = Color(0xFFE9EDE8)
-internal val LightOnSurfaceVariant = Color(0xFF59636A)
-internal val LightOutline = Color(0xFF788187)
-internal val LightSurfaceContainerLow = Color(0xFFFDFBF6)
-internal val LightSurfaceContainer = Color(0xFFF3F1EB)
-internal val LightSurfaceContainerHigh = Color(0xFFEDEBE5)
-internal val LightError = Color(0xFFBA1A1A)
+internal val LightOnSurface = Ink
+internal val LightSurfaceVariant = Stone
+internal val LightOnSurfaceVariant = InkMuted
+internal val LightOutline = Color(0xFF8C928C)
+internal val LightOutlineVariant = Hairline
+internal val LightSurfaceContainerLowest = White
+internal val LightSurfaceContainerLow = Color(0xFFF7F6F2)
+internal val LightSurfaceContainer = Stone
+internal val LightSurfaceContainerHigh = Color(0xFFEDECE7)
+internal val LightSurfaceContainerHighest = StoneDeep
+internal val LightError = Color(0xFFB3443C)
 internal val LightOnError = White
-internal val LightErrorContainer = Color(0xFFFFDAD6)
-internal val LightOnErrorContainer = Color(0xFF410002)
+internal val LightErrorContainer = Color(0xFFF8E3E0)
+internal val LightOnErrorContainer = Color(0xFF5C1A14)
 
-internal val DarkPrimary = Color(0xFF83C7F5)
-internal val DarkOnPrimary = Color(0xFF003553)
-internal val DarkPrimaryContainer = Color(0xFF004C78)
-internal val DarkOnPrimaryContainer = Color(0xFFCDEBFF)
-internal val DarkSecondary = Color(0xFFB8CF8A)
-internal val DarkOnSecondary = Color(0xFF243600)
-internal val DarkSecondaryContainer = Color(0xFF384D12)
-internal val DarkOnSecondaryContainer = Color(0xFFD6EFA3)
-internal val DarkTertiary = Color(0xFFF0B4C7)
-internal val DarkOnTertiary = Color(0xFF4A1F30)
-internal val DarkTertiaryContainer = Color(0xFF633247)
-internal val DarkOnTertiaryContainer = Color(0xFFFFD8E4)
-internal val DarkBackground = DeepNavy
-internal val DarkOnBackground = Color(0xFFE7EDF1)
-internal val DarkSurface = Color(0xFF111C24)
-internal val DarkOnSurface = DarkOnBackground
-internal val DarkSurfaceVariant = Color(0xFF24313A)
-internal val DarkOnSurfaceVariant = Color(0xFFB8C2C9)
-internal val DarkOutline = Color(0xFF89949B)
-internal val DarkSurfaceContainerLow = Color(0xFF0F1A22)
-internal val DarkSurfaceContainer = Color(0xFF17232C)
-internal val DarkSurfaceContainerHigh = Color(0xFF202D36)
-internal val DarkError = Color(0xFFFFB4AB)
-internal val DarkOnError = Color(0xFF690005)
-internal val DarkErrorContainer = Color(0xFF93000A)
-internal val DarkOnErrorContainer = Color(0xFFFFDAD6)
+// Transaction colours stay semantic, and text labels still carry the meaning.
+// All three clear 4.5:1 on white for normal-size amount text.
+val IncomeGreen = Color(0xFF3D7653)
+val ExpenseRed = Color(0xFFB5574B)
+val TransferBlue = Color(0xFF3B6CAB)
 
-// Transaction colors remain semantic and text/icon labels still carry meaning.
-// Slightly deepened from the illustration samples so normal-size amount text
-// clears WCAG 4.5:1 on the light surface (4.55:1 and 4.65:1 respectively).
-val IncomeGreen = Color(0xFF627F3C)
-val ExpenseRed = Color(0xFFBA526C)
-val TransferBlue = SkyBlue
-val IncomeGreenDark = Color(0xFFB8D68A)
-val ExpenseRedDark = Color(0xFFF3AEC0)
-val TransferBlueDark = DarkPrimary
+/** Soft backgrounds behind the semantic colours (icons, chips). */
+val IncomeSoft = Mint
+val ExpenseSoft = Color(0xFFFBEDE9)
+val TransferSoft = Mist

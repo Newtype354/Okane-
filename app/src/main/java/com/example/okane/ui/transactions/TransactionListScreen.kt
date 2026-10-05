@@ -1,7 +1,14 @@
 package com.example.okane.ui.transactions
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -19,15 +26,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -35,11 +38,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -48,11 +48,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
@@ -68,20 +69,30 @@ import com.example.okane.data.local.TransactionEntity
 import com.example.okane.data.local.WalletEntity
 import com.example.okane.domain.model.TransactionSource
 import com.example.okane.domain.model.TransactionType
-import com.example.okane.ui.components.GlassSurface
-import com.example.okane.ui.components.GlassVariant
-import com.example.okane.ui.components.OkaneOutlinedButton
+import com.example.okane.ui.components.AnimatedAmountText
+import com.example.okane.ui.components.CalmBottomSheet
+import com.example.okane.ui.components.CalmCard
+import com.example.okane.ui.components.CalmSecondaryButton
+import com.example.okane.ui.components.CalmTokens
+import com.example.okane.ui.components.IconBadge
 import com.example.okane.ui.components.SectionHeader
 import com.example.okane.ui.components.StatusChip
+import com.example.okane.ui.components.pressScale
 import com.example.okane.ui.format.Formatters
+import com.example.okane.ui.icons.OkaneIcons
+import com.example.okane.ui.illustration.Pebbles
 import com.example.okane.ui.theme.ExpenseRed
+import com.example.okane.ui.theme.ExpenseSoft
 import com.example.okane.ui.theme.IncomeGreen
+import com.example.okane.ui.theme.IncomeSoft
+import com.example.okane.ui.theme.Lavender
+import com.example.okane.ui.theme.LavenderInk
 import com.example.okane.ui.theme.OkaneTheme
 import com.example.okane.ui.theme.TransferBlue
+import com.example.okane.ui.theme.TransferSoft
 import java.time.Instant
 import java.time.ZoneId
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TransactionListScreen(
     state: HistoryUiState,
@@ -96,18 +107,15 @@ fun TransactionListScreen(
         modifier = modifier
             .fillMaxSize()
             .testTag("transactionList"),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        // Bottom room clears the floating navigation bar and the add button.
+        contentPadding = PaddingValues(
+            start = CalmTokens.screenPadding,
+            end = CalmTokens.screenPadding,
+            top = 12.dp,
+            bottom = 184.dp,
+        ),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        item(key = "history-subtitle") {
-            Text(
-                text = "Semua catatan keuanganmu",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 4.dp),
-            )
-        }
-
         item(key = "history-filters") {
             HistoryFilters(state.filters, actions)
         }
@@ -118,7 +126,7 @@ fun TransactionListScreen(
 
         if (state.uncategorisedCount > 0 || state.filters.onlyUncategorised) {
             item(key = "history-uncategorised") {
-                UncategorisedEntryPoint(state, actions)
+                UncategorisedEntryPoint(state, actions, Modifier.animateItem())
             }
         }
 
@@ -130,6 +138,7 @@ fun TransactionListScreen(
                         message = "Catatan transaksi yang kamu buat akan muncul di sini.",
                         actionLabel = "Catat transaksi",
                         onAction = onAddTransaction,
+                        modifier = Modifier.animateItem(),
                     )
                 }
             }
@@ -141,6 +150,7 @@ fun TransactionListScreen(
                         message = "Coba ubah periode atau jenis transaksi.",
                         actionLabel = "Reset filter",
                         onAction = actions.onResetFilters,
+                        modifier = Modifier.animateItem(),
                     )
                 }
             }
@@ -150,13 +160,17 @@ fun TransactionListScreen(
                     item(key = "history-date-${group.date}") {
                         SectionHeader(
                             text = Formatters.historyDateLabel(group.date, state.today),
-                            modifier = Modifier.padding(top = 4.dp, start = 4.dp)
+                            modifier = Modifier
+                                .animateItem()
+                                .padding(top = 10.dp, start = 4.dp, bottom = 2.dp)
                         )
                     }
                     items(
                         items = group.transactions,
                         key = { item -> "transaction-${item.transaction.id}" },
                     ) { item ->
+                        // animateItem: rows fade in, fade out and glide to new
+                        // positions when a filter changes, instead of popping.
                         HistoryTransactionRow(
                             item = item,
                             onOpenDetail = {
@@ -165,6 +179,7 @@ fun TransactionListScreen(
                             onOpenCategoryPicker = {
                                 actions.onOpenCategoryPicker(item.transaction.id)
                             },
+                            modifier = Modifier.animateItem(),
                         )
                     }
                 }
@@ -202,29 +217,29 @@ private fun HistoryFilters(
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         HistoryFilterMenu(
             label = "Periode",
             selectedLabel = filters.period.label,
+            icon = OkaneIcons.Calendar,
             options = HistoryPeriod.entries,
             optionLabel = HistoryPeriod::label,
             optionTag = { "historyPeriod-${it.name}" },
             onSelected = actions.onPeriodSelected,
-            modifier = Modifier
-                .weight(1f)
-                .testTag("historyPeriodFilter"),
+            tag = "historyPeriodFilter",
+            modifier = Modifier.weight(1f),
         )
         HistoryFilterMenu(
             label = "Jenis transaksi",
             selectedLabel = filters.type.label,
+            icon = OkaneIcons.Transfer,
             options = HistoryTypeFilter.entries,
             optionLabel = HistoryTypeFilter::label,
             optionTag = { "historyType-${it.name}" },
             onSelected = actions.onTypeSelected,
-            modifier = Modifier
-                .weight(1f)
-                .testTag("historyTypeFilter"),
+            tag = "historyTypeFilter",
+            modifier = Modifier.weight(1f),
         )
     }
 }
@@ -233,58 +248,91 @@ private fun HistoryFilters(
 private fun <T> HistoryFilterMenu(
     label: String,
     selectedLabel: String,
+    icon: ImageVector,
     options: List<T>,
     optionLabel: (T) -> String,
     optionTag: (T) -> String,
     onSelected: (T) -> Unit,
+    tag: String,
     modifier: Modifier = Modifier,
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val interaction = remember { MutableInteractionSource() }
     Box(modifier = modifier) {
         Surface(
             onClick = { expanded = true },
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = 48.dp)
+                .pressScale(interaction, 0.97f)
                 .pointerInput(label) {
+                    // A horizontal drag that starts on the control belongs to
+                    // the control, not to root-page navigation.
                     detectHorizontalDragGestures { change, _ ->
                         change.consume()
                     }
                 }
+                // Tag and state on the same (clickable) node, so the current
+                // choice is readable wherever the control is found.
+                .testTag(tag)
                 .semantics {
                     stateDescription = "$label: $selectedLabel"
                 },
-            shape = RoundedCornerShape(14.dp),
-            color = MaterialTheme.colorScheme.surfaceContainer,
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surface,
             contentColor = MaterialTheme.colorScheme.onSurface,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+            border = BorderStroke(CalmTokens.hairline, MaterialTheme.colorScheme.outlineVariant),
+            interactionSource = interaction,
         ) {
             Row(
-                modifier = Modifier.padding(start = 14.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
+                modifier = Modifier.padding(start = 14.dp, end = 10.dp, top = 12.dp, bottom = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp),
+                )
                 Text(
                     text = selectedLabel,
                     style = MaterialTheme.typography.labelLarge,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = 8.dp)
                 )
                 Icon(
-                    Icons.Filled.ArrowDropDown,
+                    OkaneIcons.ChevronDown,
                     contentDescription = "Buka pilihan $label",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp),
                 )
             }
         }
         DropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
+            shape = RoundedCornerShape(18.dp),
+            containerColor = MaterialTheme.colorScheme.surface,
+            border = BorderStroke(CalmTokens.hairline, MaterialTheme.colorScheme.outlineVariant),
+            shadowElevation = 6.dp,
         ) {
             options.forEach { option ->
                 val optionText = optionLabel(option)
                 val isSelected = optionText == selectedLabel
                 DropdownMenuItem(
-                    text = { Text(optionText) },
+                    text = {
+                        Text(
+                            optionText,
+                            color = if (isSelected) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurface
+                            },
+                        )
+                    },
                     onClick = {
                         expanded = false
                         onSelected(option)
@@ -294,7 +342,12 @@ private fun <T> HistoryFilterMenu(
                         .semantics { selected = isSelected },
                     trailingIcon = {
                         if (isSelected) {
-                            Icon(Icons.Filled.Check, contentDescription = "Dipilih")
+                            Icon(
+                                OkaneIcons.Check,
+                                contentDescription = "Dipilih",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp),
+                            )
                         }
                     },
                 )
@@ -312,66 +365,90 @@ private fun HistorySummaryCard(
     val useStackedSummary =
         listOf(summary.income, summary.expense, summary.net)
             .maxOf { Formatters.netRupiah(it).length } > 16
-    GlassSurface(
-        variant = GlassVariant.Subtle,
+    CalmCard(
         modifier = Modifier.fillMaxWidth(),
         contentPadding = PaddingValues(18.dp),
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Text(
-                text = "Ringkasan · ${period.label}",
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            BoxWithConstraints {
-                if (maxWidth < 340.dp || fontScale >= 1.3f || useStackedSummary) {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        SummaryMetric(
-                            label = "Pemasukan",
-                            amount = Formatters.rupiah(summary.income),
-                            color = IncomeGreen,
-                            testTag = "historyIncome",
-                        )
-                        SummaryMetric(
-                            label = "Pengeluaran",
-                            amount = Formatters.rupiah(summary.expense),
-                            color = ExpenseRed,
-                            testTag = "historyExpense",
-                        )
-                    }
-                } else {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(20.dp),
-                    ) {
-                        SummaryMetric(
-                            label = "Pemasukan",
-                            amount = Formatters.rupiah(summary.income),
-                            color = IncomeGreen,
-                            testTag = "historyIncome",
-                            modifier = Modifier.weight(1f),
-                        )
-                        SummaryMetric(
-                            label = "Pengeluaran",
-                            amount = Formatters.rupiah(summary.expense),
-                            color = ExpenseRed,
-                            testTag = "historyExpense",
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
+        Text(
+            text = "Ringkasan · ${period.label}",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        BoxWithConstraints(modifier = Modifier.padding(top = 12.dp)) {
+            if (maxWidth < 340.dp || fontScale >= 1.3f || useStackedSummary) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    SummaryMetric(
+                        label = "Pemasukan",
+                        amount = summary.income,
+                        format = Formatters::rupiah,
+                        color = IncomeGreen,
+                        soft = IncomeSoft,
+                        icon = OkaneIcons.ArrowDownLeft,
+                        testTag = "historyIncome",
+                    )
+                    SummaryMetric(
+                        label = "Pengeluaran",
+                        amount = summary.expense,
+                        format = Formatters::rupiah,
+                        color = ExpenseRed,
+                        soft = ExpenseSoft,
+                        icon = OkaneIcons.ArrowUpRight,
+                        testTag = "historyExpense",
+                    )
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    SummaryMetric(
+                        label = "Pemasukan",
+                        amount = summary.income,
+                        format = Formatters::rupiah,
+                        color = IncomeGreen,
+                        soft = IncomeSoft,
+                        icon = OkaneIcons.ArrowDownLeft,
+                        testTag = "historyIncome",
+                        modifier = Modifier.weight(1f),
+                    )
+                    SummaryMetric(
+                        label = "Pengeluaran",
+                        amount = summary.expense,
+                        format = Formatters::rupiah,
+                        color = ExpenseRed,
+                        soft = ExpenseSoft,
+                        icon = OkaneIcons.ArrowUpRight,
+                        testTag = "historyExpense",
+                        modifier = Modifier.weight(1f),
+                    )
                 }
             }
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.55f))
+        }
+        HorizontalDivider(
+            color = MaterialTheme.colorScheme.outlineVariant,
+            modifier = Modifier.padding(vertical = 14.dp),
+        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "Selisih",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f),
+            )
             val netColor = when {
                 summary.net > 0 -> IncomeGreen
                 summary.net < 0 -> ExpenseRed
                 else -> MaterialTheme.colorScheme.onSurface
             }
-            SummaryMetric(
-                label = "Selisih",
-                amount = Formatters.netRupiah(summary.net),
+            AnimatedAmountText(
+                value = summary.net,
+                format = Formatters::netRupiah,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.SemiBold,
+                    fontFeatureSettings = "tnum",
+                ),
                 color = netColor,
-                testTag = "historyNet",
+                modifier = Modifier.testTag("historyNet"),
             )
         }
     }
@@ -380,24 +457,33 @@ private fun HistorySummaryCard(
 @Composable
 private fun SummaryMetric(
     label: String,
-    amount: String,
+    amount: Long,
+    format: (Long) -> String,
     color: Color,
+    soft: Color,
+    icon: ImageVector,
     testTag: String,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            text = amount,
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.SemiBold,
-            color = color,
-            modifier = Modifier.testTag(testTag),
-        )
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
+        IconBadge(icon = icon, container = soft, tint = color, size = 38.dp)
+        Column(modifier = Modifier.padding(start = 10.dp)) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            AnimatedAmountText(
+                value = amount,
+                format = format,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.SemiBold,
+                    fontFeatureSettings = "tnum",
+                ),
+                color = color,
+                modifier = Modifier.testTag(testTag),
+            )
+        }
     }
 }
 
@@ -405,17 +491,20 @@ private fun SummaryMetric(
 private fun UncategorisedEntryPoint(
     state: HistoryUiState,
     actions: HistoryActions,
+    modifier: Modifier = Modifier,
 ) {
     val isSelected = state.filters.onlyUncategorised
+    val interaction = remember { MutableInteractionSource() }
     Surface(
         onClick = if (isSelected) {
             actions.onShowAllTransactions
         } else {
             actions.onShowUncategorised
         },
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = 52.dp)
+            .heightIn(min = 56.dp)
+            .pressScale(interaction, 0.98f)
             .testTag("uncategorisedEntry")
             .semantics {
                 selected = isSelected
@@ -425,18 +514,16 @@ private fun UncategorisedEntryPoint(
                     "Mode transaksi perlu kategori tidak aktif"
                 }
             },
-        shape = RoundedCornerShape(14.dp),
-        color = MaterialTheme.colorScheme.tertiaryContainer,
-        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-        border = BorderStroke(
-            1.dp,
-            MaterialTheme.colorScheme.tertiary.copy(alpha = 0.55f)
-        ),
+        shape = RoundedCornerShape(CalmTokens.tileRadius),
+        color = Lavender,
+        contentColor = LavenderInk,
+        interactionSource = interaction,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            Icon(OkaneIcons.Info, contentDescription = null, modifier = Modifier.size(20.dp))
             Text(
                 text = when {
                     state.uncategorisedCount == 0 -> "Semua transaksi sudah berkategori"
@@ -444,7 +531,9 @@ private fun UncategorisedEntryPoint(
                     else -> "${state.uncategorisedCount} transaksi perlu kategori"
                 },
                 style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 10.dp),
             )
             Text(
                 text = if (isSelected) "Tampilkan semua" else "Periksa",
@@ -461,23 +550,25 @@ private fun HistoryEmptyState(
     message: String,
     actionLabel: String,
     onAction: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    GlassSurface(
-        variant = GlassVariant.Subtle,
-        modifier = Modifier
+    CalmCard(
+        modifier = modifier
             .fillMaxWidth()
             .testTag("historyEmptyState"),
         contentPadding = PaddingValues(24.dp),
     ) {
         Column(
+            modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
+            Pebbles(modifier = Modifier.size(width = 120.dp, height = 72.dp))
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 6.dp),
             )
             Text(
                 text = message,
@@ -485,12 +576,13 @@ private fun HistoryEmptyState(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
             )
-            OkaneOutlinedButton(
+            CalmSecondaryButton(
+                text = actionLabel,
                 onClick = onAction,
-                modifier = Modifier.testTag("historyEmptyAction"),
-            ) {
-                Text(actionLabel)
-            }
+                modifier = Modifier
+                    .padding(top = 6.dp)
+                    .testTag("historyEmptyAction"),
+            )
         }
     }
 }
@@ -500,6 +592,7 @@ private fun HistoryTransactionRow(
     item: HistoryTransactionItem,
     onOpenDetail: () -> Unit,
     onOpenCategoryPicker: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val transaction = item.transaction
     val accent = transactionAccent(transaction.type)
@@ -522,51 +615,58 @@ private fun HistoryTransactionRow(
     }
     val fontScale = LocalDensity.current.fontScale
     val formattedAmount = Formatters.signedRupiah(transaction.amount, transaction.type)
+    val interaction = remember { MutableInteractionSource() }
 
     Surface(
         onClick = onOpenDetail,
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
+            .pressScale(interaction, 0.985f)
             .testTag("transactionRow-${transaction.id}")
             .semantics { contentDescription = description },
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(CalmTokens.tileRadius),
         color = MaterialTheme.colorScheme.surface,
         contentColor = MaterialTheme.colorScheme.onSurface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.7f)),
+        border = BorderStroke(CalmTokens.hairline, MaterialTheme.colorScheme.outlineVariant),
+        interactionSource = interaction,
     ) {
-        BoxWithConstraints(modifier = Modifier.padding(16.dp)) {
+        BoxWithConstraints(modifier = Modifier.padding(14.dp)) {
             val stackAmount =
-                maxWidth < 340.dp || fontScale >= 1.3f || formattedAmount.length > 16
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                maxWidth < 300.dp || fontScale >= 1.3f || formattedAmount.length > 16
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.Top,
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    TransactionTypeIcon(transaction.type, accent)
+                    IconBadge(
+                        icon = transactionIcon(transaction.type),
+                        container = transactionSoft(transaction.type),
+                        tint = accent,
+                    )
                     Column(
                         modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(3.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
                     ) {
                         Text(
                             text = item.title,
                             style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                         if (item.isUncategorised) {
-                            TextButton(
-                                onClick = onOpenCategoryPicker,
-                                contentPadding = PaddingValues(horizontal = 0.dp),
+                            Text(
+                                text = "Perlu kategori",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.tertiary,
                                 modifier = Modifier
-                                    .heightIn(min = 48.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable(role = Role.Button, onClick = onOpenCategoryPicker)
+                                    .heightIn(min = 36.dp)
+                                    .padding(vertical = 8.dp)
                                     .testTag("transactionCategory-${transaction.id}"),
-                            ) {
-                                Text(
-                                    text = "Perlu kategori",
-                                    color = MaterialTheme.colorScheme.tertiary,
-                                    fontWeight = FontWeight.SemiBold,
-                                )
-                            }
+                            )
                             Text(
                                 text = item.walletName,
                                 style = MaterialTheme.typography.bodySmall,
@@ -575,13 +675,13 @@ private fun HistoryTransactionRow(
                         } else {
                             Text(
                                 text = supportingText,
-                                style = MaterialTheme.typography.bodyMedium,
+                                style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
                         Text(
                             text = Formatters.time(transaction.occurredAt),
-                            style = MaterialTheme.typography.bodySmall,
+                            style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
@@ -603,35 +703,6 @@ private fun HistoryTransactionRow(
 }
 
 @Composable
-private fun TransactionTypeIcon(
-    type: TransactionType,
-    accent: Color,
-) {
-    Surface(
-        shape = CircleShape,
-        color = accent.copy(alpha = 0.14f),
-        modifier = Modifier.size(42.dp),
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                contentDescription = null,
-                tint = accent,
-                modifier = Modifier
-                    .size(19.dp)
-                    .rotate(
-                        when (type) {
-                            TransactionType.IN -> 135f
-                            TransactionType.OUT -> -45f
-                            TransactionType.TRANSFER -> 0f
-                        }
-                    ),
-            )
-        }
-    }
-}
-
-@Composable
 private fun TransactionAmount(
     transaction: TransactionEntity,
     typeLabel: String,
@@ -644,16 +715,15 @@ private fun TransactionAmount(
     ) {
         Text(
             text = Formatters.signedRupiah(transaction.amount, transaction.type),
-            style = MaterialTheme.typography.bodyLarge,
+            style = MaterialTheme.typography.bodyLarge.copy(fontFeatureSettings = "tnum"),
             fontWeight = FontWeight.Bold,
             color = accent,
             textAlign = TextAlign.End,
         )
         Text(
             text = typeLabel,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = accent,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
@@ -668,12 +738,10 @@ private fun TransactionDetailSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val transaction = item.transaction
     val accent = transactionAccent(transaction.type)
-    ModalBottomSheet(
+    CalmBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         modifier = Modifier.testTag("transactionDetailSheet"),
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        contentColor = MaterialTheme.colorScheme.onSurface,
     ) {
         Column(
             modifier = Modifier
@@ -683,58 +751,83 @@ private fun TransactionDetailSheet(
                 .padding(start = 24.dp, end = 24.dp, bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Text(
-                text = "Detail transaksi",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-            )
-            Text(
-                text = item.title,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                text = Formatters.signedRupiah(transaction.amount, transaction.type),
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = accent,
-            )
-            StatusChip(text = transactionTypeLabel(transaction.type), color = accent)
-            HorizontalDivider()
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconBadge(
+                    icon = transactionIcon(transaction.type),
+                    container = transactionSoft(transaction.type),
+                    tint = accent,
+                    size = 52.dp,
+                )
+                Column(modifier = Modifier.padding(start = 14.dp)) {
+                    Text(
+                        text = "Detail transaksi",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        text = item.title,
+                        style = MaterialTheme.typography.titleLarge,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = Formatters.signedRupiah(transaction.amount, transaction.type),
+                    style = MaterialTheme.typography.headlineMedium.copy(fontFeatureSettings = "tnum"),
+                    fontWeight = FontWeight.Bold,
+                    color = accent,
+                    modifier = Modifier.weight(1f),
+                )
+                StatusChip(text = transactionTypeLabel(transaction.type), color = accent)
+            }
 
-            if (transaction.type == TransactionType.TRANSFER) {
-                DetailValue("Dari", item.walletName)
-                DetailValue("Ke", item.destinationWalletName ?: "Dompet tidak ditemukan")
-            } else {
-                DetailValue("Dompet", item.walletName)
-                DetailValue("Kategori", item.categoryLabel ?: "Perlu kategori")
-                TextButton(
+            CalmCard(
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                border = false,
+                contentPadding = PaddingValues(horizontal = 18.dp, vertical = 6.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                if (transaction.type == TransactionType.TRANSFER) {
+                    DetailValue("Dari", item.walletName)
+                    DetailValue("Ke", item.destinationWalletName ?: "Dompet tidak ditemukan")
+                } else {
+                    DetailValue("Dompet", item.walletName)
+                    DetailValue("Kategori", item.categoryLabel ?: "Perlu kategori")
+                }
+                item.transaction.merchant?.takeIf { it.isNotBlank() }?.let {
+                    DetailValue("Merchant", it)
+                }
+                DetailValue(
+                    "Sumber",
+                    when (transaction.source) {
+                        TransactionSource.MANUAL -> "Manual"
+                        TransactionSource.NOTIFICATION -> "Notifikasi"
+                    }
+                )
+                transaction.sourceApp?.takeIf { it.isNotBlank() }?.let {
+                    DetailValue("Aplikasi sumber", it)
+                }
+                DetailValue("Waktu transaksi", Formatters.dateTime(transaction.occurredAt))
+                DetailValue("Waktu pencatatan", Formatters.dateTime(transaction.createdAt))
+                transaction.note?.takeIf { it.isNotBlank() }?.let {
+                    DetailValue("Catatan", it)
+                }
+            }
+
+            if (transaction.type != TransactionType.TRANSFER) {
+                CalmSecondaryButton(
+                    text = if (item.isUncategorised) "Pilih kategori" else "Ubah kategori",
+                    icon = OkaneIcons.Pencil,
                     onClick = onOpenCategoryPicker,
+                    container = MaterialTheme.colorScheme.primaryContainer,
+                    content = MaterialTheme.colorScheme.onPrimaryContainer,
+                    bordered = false,
                     modifier = Modifier
-                        .heightIn(min = 48.dp)
+                        .fillMaxWidth()
                         .testTag("detailCategoryAction"),
-                ) {
-                    Text(if (item.isUncategorised) "Pilih kategori" else "Ubah kategori")
-                }
-            }
-
-            item.transaction.merchant?.takeIf { it.isNotBlank() }?.let {
-                DetailValue("Merchant", it)
-            }
-            DetailValue(
-                "Sumber",
-                when (transaction.source) {
-                    TransactionSource.MANUAL -> "Manual"
-                    TransactionSource.NOTIFICATION -> "Notifikasi"
-                }
-            )
-            transaction.sourceApp?.takeIf { it.isNotBlank() }?.let {
-                DetailValue("Aplikasi sumber", it)
-            }
-            DetailValue("Waktu transaksi", Formatters.dateTime(transaction.occurredAt))
-            DetailValue("Waktu pencatatan", Formatters.dateTime(transaction.createdAt))
-            transaction.note?.takeIf { it.isNotBlank() }?.let {
-                DetailValue("Catatan", it)
+                )
             }
         }
     }
@@ -745,16 +838,25 @@ private fun DetailValue(
     label: String,
     value: String,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
         Text(
             text = label,
-            style = MaterialTheme.typography.labelMedium,
+            style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
         )
         Text(
             text = value,
-            style = MaterialTheme.typography.bodyLarge,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
             color = MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.End,
+            modifier = Modifier.weight(1.4f),
         )
     }
 }
@@ -769,12 +871,10 @@ private fun HistoryCategoryPickerSheet(
     onCategorySelected: (Long) -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    ModalBottomSheet(
+    CalmBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         modifier = Modifier.testTag("historyCategoryPicker"),
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        contentColor = MaterialTheme.colorScheme.onSurface,
     ) {
         Column(
             modifier = Modifier
@@ -785,7 +885,6 @@ private fun HistoryCategoryPickerSheet(
             Text(
                 text = "Pilih kategori",
                 style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
             )
             Text(
                 text = state.transaction.title,
@@ -793,9 +892,13 @@ private fun HistoryCategoryPickerSheet(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
             )
-            if (errorMessage != null) {
+            AnimatedVisibility(
+                visible = errorMessage != null,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically(),
+            ) {
                 Text(
-                    text = errorMessage,
+                    text = errorMessage.orEmpty(),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier
@@ -816,44 +919,77 @@ private fun HistoryCategoryPickerSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(max = 480.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     items(state.categories, key = CategoryEntity::id) { category ->
                         val selectedCategory =
                             state.transaction.transaction.categoryId == category.id
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = 52.dp)
-                                .testTag("historyCategory-${category.id}")
-                                .selectable(
-                                    selected = selectedCategory,
-                                    enabled = !updateInProgress,
-                                    role = Role.RadioButton,
-                                    onClick = { onCategorySelected(category.id) },
-                                )
-                                .padding(horizontal = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            RadioButton(
-                                selected = selectedCategory,
-                                onClick = null,
-                                enabled = !updateInProgress,
-                            )
-                            Spacer(Modifier.width(12.dp))
-                            Text(
-                                text = category.name,
-                                style = MaterialTheme.typography.bodyLarge,
-                                modifier = Modifier.weight(1f),
-                            )
-                            if (updateInProgress && selectedCategory) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(20.dp),
-                                    strokeWidth = 2.dp,
-                                )
-                            }
-                        }
+                        CategoryOptionRow(
+                            name = category.name,
+                            selected = selectedCategory,
+                            enabled = !updateInProgress,
+                            loading = updateInProgress && selectedCategory,
+                            onClick = { onCategorySelected(category.id) },
+                            modifier = Modifier.testTag("historyCategory-${category.id}"),
+                        )
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CategoryOptionRow(
+    name: String,
+    selected: Boolean,
+    enabled: Boolean,
+    loading: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = 52.dp)
+            .selectable(
+                selected = selected,
+                enabled = enabled,
+                role = Role.RadioButton,
+                onClick = onClick,
+            ),
+        shape = RoundedCornerShape(CalmTokens.controlRadius),
+        color = if (selected) {
+            MaterialTheme.colorScheme.primaryContainer
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerLow
+        },
+        contentColor = if (selected) {
+            MaterialTheme.colorScheme.onPrimaryContainer
+        } else {
+            MaterialTheme.colorScheme.onSurface
+        },
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = name,
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.weight(1f),
+            )
+            when {
+                loading -> CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    strokeWidth = 2.dp,
+                )
+                selected -> Icon(
+                    OkaneIcons.Check,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                )
+                else -> Spacer(Modifier.width(20.dp))
             }
         }
     }
@@ -865,11 +1001,22 @@ private fun transactionTypeLabel(type: TransactionType): String = when (type) {
     TransactionType.TRANSFER -> "Transfer"
 }
 
-@Composable
 private fun transactionAccent(type: TransactionType): Color = when (type) {
     TransactionType.IN -> IncomeGreen
     TransactionType.OUT -> ExpenseRed
     TransactionType.TRANSFER -> TransferBlue
+}
+
+private fun transactionSoft(type: TransactionType): Color = when (type) {
+    TransactionType.IN -> IncomeSoft
+    TransactionType.OUT -> ExpenseSoft
+    TransactionType.TRANSFER -> TransferSoft
+}
+
+private fun transactionIcon(type: TransactionType): ImageVector = when (type) {
+    TransactionType.IN -> OkaneIcons.ArrowDownLeft
+    TransactionType.OUT -> OkaneIcons.ArrowUpRight
+    TransactionType.TRANSFER -> OkaneIcons.Transfer
 }
 
 private val PreviewActions = HistoryActions(

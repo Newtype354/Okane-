@@ -16,7 +16,7 @@ flowchart TB
     subgraph uilayer["ui/ — Compose screens and ViewModels"]
         VM["TransactionViewModel.kt<br/>KeypadViewModel.kt<br/>OnboardingViewModel.kt<br/>SettingsViewModel.kt"]
         SCR["OkaneMainScreen.kt<br/>dashboard/DashboardScreen.kt<br/>keypad/KeypadScreen.kt<br/>onboarding/OnboardingScreen.kt<br/>transactions/TransactionListScreen.kt<br/>settings/SettingsScreen.kt<br/>splash/OkaneSplashScreen.kt"]
-        UIS["components/OkaneComponents.kt<br/>format/Formatters.kt<br/>theme/Color.kt, Theme.kt, Type.kt"]
+        UIS["components/Calm.kt, OkaneComponents.kt<br/>icons/, illustration/, navigation/<br/>format/Formatters.kt<br/>theme/Color.kt, Theme.kt, Type.kt, Motion.kt"]
     end
 
     subgraph puredomain["domain/ — pure Kotlin, no Android, no data/"]
@@ -131,8 +131,13 @@ with `stateIn(..., WhileSubscribed(5_000), ...)`.
 - **`SettingsViewModel`** owns the per-app notification toggles and the
   discovery-sample counter.
 
-`components/OkaneComponents.kt` holds the shared `OkaneCard`, `SectionHeader`,
-`StatusChip`, `OkaneButton`, `OkaneOutlinedButton`. `format/Formatters.kt`
+`components/Calm.kt` is the calm design system: `CalmCard`, `PastelTile`,
+`CalmChip`, `CalmButton`, `CalmFab`, `CalmBottomSheet`, plus the `pressScale`
+and `calmEntrance` modifiers. `OkaneComponents.kt` keeps the older names
+(`OkaneCard`, `SectionHeader`, `StatusChip`, `OkaneButton`) on top of it.
+`icons/` holds thin line icons, `illustration/` the Canvas-drawn stones and
+leaves, `navigation/OkaneRoute.kt` the animated top-level routing, and
+`theme/Motion.kt` the shared easing and durations. `format/Formatters.kt`
 renders `Rp1.234.567` for lists and the dashboard.
 
 ### `domain/` — the pure half

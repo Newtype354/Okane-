@@ -12,6 +12,8 @@ import com.example.okane.data.repository.WalletRepository
 import com.example.okane.domain.SummaryCalculator
 import com.example.okane.domain.model.DashboardSummary
 import com.example.okane.domain.model.TransactionType
+import com.example.okane.ui.dashboard.HomePresenter
+import com.example.okane.ui.dashboard.HomeUiState
 import com.example.okane.ui.transactions.HistoryFilters
 import com.example.okane.ui.transactions.HistoryPeriod
 import com.example.okane.ui.transactions.HistoryPresenter
@@ -123,6 +125,18 @@ class TransactionViewModel @Inject constructor(
             zoneId = ZoneId.systemDefault(),
         )
     }.asState(HistoryUiState())
+
+    /**
+     * Home's streak, month figures and quote. Recomputed on every transaction
+     * change and at local midnight, so a streak and "Bulan ini" roll over on
+     * time even while the app stays open.
+     */
+    val homeUiState: StateFlow<HomeUiState> = combine(
+        transactions,
+        localDayTicker(),
+    ) { rows, now ->
+        HomePresenter.present(rows, now, ZoneId.systemDefault())
+    }.asState(HomeUiState())
 
     fun selectHistoryPeriod(period: HistoryPeriod) {
         _historyFilters.update { it.copy(period = period) }

@@ -1,26 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Splash logo: white "O" ring (Okane) with a small grass-green coin.
-     On Android 12+ the system masks this into a circle, so everything is
-     kept inside the central ~66dp safe zone of the 108dp canvas. -->
+<!-- Splash mark: a sage cairn of four stones with a leaf sprig. On Android 12+
+     the system masks this into a circle, so it stays inside the central
+     ~66dp safe zone of the 108dp canvas. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-
-    <!-- "O" ring: a full circle drawn as two arcs, stroked, not filled -->
-    <path
-        android:pathData="M 32,54 a 22,22 0 1,1 44,0 a 22,22 0 1,1 -44,0"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="8"
-        android:strokeLineCap="round"
-        android:fillColor="#00000000" />
-
-    <!-- Grass-green coin overlapping the ring's bottom-right; the deep navy
-         outline separates it from the white ring underneath -->
-    <path
-        android:pathData="M 61,68 a 9,9 0 1,1 18,0 a 9,9 0 1,1 -18,0"
-        android:fillColor="@color/grass_green"
-        android:strokeColor="@color/deep_navy"
-        android:strokeWidth="4" />
+    <!-- Centred and enlarged within the safe zone. -->
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:scaleX="1.16"
+        android:scaleY="1.16"
+        android:translateX="-2"
+        android:translateY="-4">
+        <path
+            android:pathData="M72,77 Q70,58 79,38"
+            android:strokeColor="#FF5E9468"
+            android:strokeWidth="2.2"
+            android:strokeLineCap="round"
+            android:fillColor="#00000000" />
+        <path android:pathData="M75,62 Q80,55 87,56 Q83,64 75,62 Z" android:fillColor="#FF7FAF86" />
+        <path android:pathData="M74,51 Q70,44 73,38 Q79,44 74,51 Z" android:fillColor="#FF6DA37E" />
+        <path android:pathData="M77,46 Q82,40 88,42 Q84,49 77,46 Z" android:fillColor="#FF7FAF86" />
+        <path android:pathData="M30,72 a21,7.5 0 1,0 42,0 a21,7.5 0 1,0 -42,0 Z" android:fillColor="#FF4E7A5D" />
+        <path android:pathData="M36.5,60 a15.5,6 0 1,0 31,0 a15.5,6 0 1,0 -31,0 Z" android:fillColor="#FF6E9A7C" />
+        <path android:pathData="M40,49.5 a11,5 0 1,0 22,0 a11,5 0 1,0 -22,0 Z" android:fillColor="#FF8DB59A" />
+        <path android:pathData="M45,41 a6.5,3.6 0 1,0 13,0 a6.5,3.6 0 1,0 -13,0 Z" android:fillColor="#FFB5D1BC" />
+    </group>
 </vector>

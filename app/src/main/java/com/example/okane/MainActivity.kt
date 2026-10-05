@@ -3,21 +3,24 @@ package com.example.okane
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.compose.animation.Crossfade
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -29,6 +32,9 @@ import com.example.okane.ui.SettingsViewModel
 import com.example.okane.ui.TransactionViewModel
 import com.example.okane.ui.keypad.KeypadScreen
 import com.example.okane.ui.keypad.KeypadViewModel
+import com.example.okane.ui.navigation.OkaneRoute
+import com.example.okane.ui.navigation.okaneRoute
+import com.example.okane.ui.navigation.okaneRouteTransition
 import com.example.okane.ui.onboarding.OnboardingScreen
 import com.example.okane.ui.onboarding.OnboardingViewModel
 import com.example.okane.ui.theme.OkaneTheme
@@ -64,13 +70,19 @@ class MainActivity : ComponentActivity() {
         // swaps back to Theme.Okane once the activity is drawn.
         installSplashScreen()
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        // The calm palette is light-only, so system bar icons are always dark,
+        // whatever the device's dark-mode setting.
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.light(LIGHT_NAV_SCRIM, DARK_NAV_SCRIM),
+        )
         // Only *check* the permission here. The request dialog itself waits
         // until the splash animation is over so it never covers the logo.
         postNotificationsGranted = isPostNotificationsGranted()
         setContent {
             OkaneTheme {
                 val historyUiState by transactionViewModel.historyUiState.collectAsState()
+                val homeUiState by transactionViewModel.homeUiState.collectAsState()
                 val walletsUiState by walletsViewModel.uiState.collectAsState()
                 val sourceToggles by settingsViewModel.sourceToggles.collectAsState()
                 val capturedCount by settingsViewModel.capturedSampleCount.collectAsState()
@@ -94,121 +106,154 @@ class MainActivity : ComponentActivity() {
                 // composition, so a returning user never sees onboarding flash.
                 val onboardingCompleted by onboardingViewModel.completed.collectAsState()
 
-                Crossfade(targetState = splashDone, label = "splashToMain") { done ->
-                    if (!done) {
-                        OkaneSplashScreen(
-                            onFinished = {
-                                splashDone = true
-                                askForPostNotificationsIfNeeded()
+                val route = okaneRoute(
+                    splashDone = splashDone,
+                    onboardingCompleted = onboardingCompleted,
+                    showSettings = showSettings,
+                    showKeypad = showKeypad,
+                )
+
+                // Each surface keeps its saveable state (list scroll
+                // positions, open filters) while another one is on screen,
+                // so returning from the keypad lands exactly where you were.
+                val saveableStateHolder = rememberSaveableStateHolder()
+
+                AnimatedContent(
+                    targetState = route,
+                    transitionSpec = { okaneRouteTransition() },
+                    label = "route",
+                ) { target ->
+                    saveableStateHolder.SaveableStateProvider(target.name) {
+                        when (target) {
+                            OkaneRoute.Splash -> OkaneSplashScreen(
+                                onFinished = {
+                                    splashDone = true
+                                    askForPostNotificationsIfNeeded()
+                                }
+                            )
+
+                            OkaneRoute.Onboarding -> {
+                                val onboardingState by onboardingViewModel.uiState.collectAsState()
+
+                                // Back steps through the slides rather than
+                                // leaving a half-set-up app; nothing is written
+                                // until Selesai.
+                                BackHandler(enabled = onboardingState.slide > 0) {
+                                    onboardingViewModel.back()
+                                }
+
+                                OnboardingScreen(
+                                    state = onboardingState,
+                                    onNext = onboardingViewModel::next,
+                                    onBack = onboardingViewModel::back,
+                                    onToggleWallet = onboardingViewModel::toggleWallet,
+                                    onWalletInitialBalance = onboardingViewModel::setWalletInitialBalance,
+                                    onWalletMonthlyFee = onboardingViewModel::setWalletMonthlyFee,
+                                    onAddCustomWallet = onboardingViewModel::addCustomWallet,
+                                    onToggleCategory = onboardingViewModel::toggleCategory,
+                                    onAddCustomCategory = onboardingViewModel::addCustomCategory
+                                )
                             }
-                        )
-                    } else if (!onboardingCompleted) {
-                        val onboardingState by onboardingViewModel.uiState.collectAsState()
 
-                        // Back steps through the slides rather than leaving a
-                        // half-set-up app; nothing is written until Selesai.
-                        BackHandler(enabled = onboardingState.slide > 0) {
-                            onboardingViewModel.back()
+                            OkaneRoute.Settings -> SettingsSecondaryScreen(
+                                postNotificationsGranted = postNotificationsGranted,
+                                listenerAccessGranted = listenerAccessGranted,
+                                sourceToggles = sourceToggles,
+                                capturedSampleCount = capturedCount,
+                                onOpenListenerSettings = {
+                                    startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                                },
+                                onSourceToggled = settingsViewModel::setSourceEnabled,
+                                onDumpSamples = settingsViewModel::dumpCapturedSamplesToLog,
+                                onBack = { showSettings = false },
+                            )
+
+                            OkaneRoute.Keypad -> {
+                                val keypadState by keypadViewModel.state.collectAsState()
+                                val keypadWallets by keypadViewModel.wallets.collectAsState()
+                                val chipCategories by keypadViewModel.chipCategories.collectAsState()
+                                val allCategories by keypadViewModel.allCategories.collectAsState()
+                                val pendingUndo by keypadViewModel.pendingUndo.collectAsState()
+
+                                BackHandler { showKeypad = false }
+
+                                KeypadScreen(
+                                    state = keypadState,
+                                    wallets = keypadWallets,
+                                    chipCategories = chipCategories,
+                                    allCategories = allCategories,
+                                    pendingUndo = pendingUndo,
+                                    onKey = keypadViewModel::press,
+                                    onSelectWallet = keypadViewModel::selectWallet,
+                                    onSelectToWallet = keypadViewModel::selectToWallet,
+                                    onToggleTransfer = keypadViewModel::setTransfer,
+                                    onToggleCategory = keypadViewModel::toggleCategory,
+                                    onCreateWallet = keypadViewModel::createWallet,
+                                    onCreateCategory = keypadViewModel::createCategory,
+                                    onPickDate = keypadViewModel::setOccurredAt,
+                                    onCommit = keypadViewModel::commit,
+                                    onCommitTransfer = keypadViewModel::commitTransfer,
+                                    onUndo = keypadViewModel::undo,
+                                    onUndoExpired = keypadViewModel::dismissUndo,
+                                    onClose = { showKeypad = false }
+                                )
+                            }
+
+                            OkaneRoute.Main -> OkaneMainScreen(
+                                pagerState = rootPagerState,
+                                historyUiState = historyUiState,
+                                historyActions = HistoryActions(
+                                    onPeriodSelected = transactionViewModel::selectHistoryPeriod,
+                                    onTypeSelected = transactionViewModel::selectHistoryType,
+                                    onShowUncategorised =
+                                        transactionViewModel::showUncategorisedHistory,
+                                    onShowAllTransactions =
+                                        transactionViewModel::showAllHistoryTransactions,
+                                    onResetFilters = transactionViewModel::resetHistoryFilters,
+                                    onOpenDetail = transactionViewModel::openTransactionDetail,
+                                    onDismissDetail = transactionViewModel::dismissTransactionDetail,
+                                    onOpenCategoryPicker =
+                                        transactionViewModel::openHistoryCategoryPicker,
+                                    onDismissCategoryPicker =
+                                        transactionViewModel::dismissHistoryCategoryPicker,
+                                    onAssignCategory = transactionViewModel::assignCategory,
+                                ),
+                                walletsUiState = walletsUiState,
+                                walletActions = WalletActions(
+                                    onOpenSettings = { showSettings = true },
+                                    onOpenAdd = walletsViewModel::openAddWallet,
+                                    onOpenDetail = walletsViewModel::openDetail,
+                                    onOpenArchived = walletsViewModel::openArchived,
+                                    onBack = walletsViewModel::navigateBack,
+                                    onOpenEdit = walletsViewModel::openEditWallet,
+                                    onDismissEditor = walletsViewModel::dismissEditor,
+                                    onEditorNameChanged = walletsViewModel::updateEditorName,
+                                    onEditorInitialBalanceChanged =
+                                        walletsViewModel::updateEditorInitialBalance,
+                                    onEditorMonthlyFeeChanged =
+                                        walletsViewModel::updateEditorMonthlyFee,
+                                    onEditorDefaultChanged = walletsViewModel::updateEditorDefault,
+                                    onSaveEditor = walletsViewModel::saveEditor,
+                                    onMakeDefault = walletsViewModel::makeSelectedDefault,
+                                    onRequestArchive = walletsViewModel::requestArchiveSelected,
+                                    onDismissArchive = walletsViewModel::dismissArchiveConfirmation,
+                                    onConfirmArchive = walletsViewModel::confirmArchive,
+                                    onRestore = walletsViewModel::restoreSelected,
+                                    onFeedbackShown = walletsViewModel::consumeFeedback,
+                                ),
+                                homeUiState = homeUiState,
+                                // Each entry point opens the keypad in the mode
+                                // its label promises; the typed amount is kept.
+                                onAddTransaction = {
+                                    keypadViewModel.setTransfer(false)
+                                    showKeypad = true
+                                },
+                                onAddTransfer = {
+                                    keypadViewModel.setTransfer(true)
+                                    showKeypad = true
+                                },
+                            )
                         }
-
-                        OnboardingScreen(
-                            state = onboardingState,
-                            onNext = onboardingViewModel::next,
-                            onBack = onboardingViewModel::back,
-                            onToggleWallet = onboardingViewModel::toggleWallet,
-                            onWalletInitialBalance = onboardingViewModel::setWalletInitialBalance,
-                            onWalletMonthlyFee = onboardingViewModel::setWalletMonthlyFee,
-                            onAddCustomWallet = onboardingViewModel::addCustomWallet,
-                            onToggleCategory = onboardingViewModel::toggleCategory,
-                            onAddCustomCategory = onboardingViewModel::addCustomCategory
-                        )
-                    } else if (showSettings) {
-                        SettingsSecondaryScreen(
-                            postNotificationsGranted = postNotificationsGranted,
-                            listenerAccessGranted = listenerAccessGranted,
-                            sourceToggles = sourceToggles,
-                            capturedSampleCount = capturedCount,
-                            onOpenListenerSettings = {
-                                startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-                            },
-                            onSourceToggled = settingsViewModel::setSourceEnabled,
-                            onDumpSamples = settingsViewModel::dumpCapturedSamplesToLog,
-                            onBack = { showSettings = false },
-                        )
-                    } else if (showKeypad) {
-                        val keypadState by keypadViewModel.state.collectAsState()
-                        val keypadWallets by keypadViewModel.wallets.collectAsState()
-                        val chipCategories by keypadViewModel.chipCategories.collectAsState()
-                        val allCategories by keypadViewModel.allCategories.collectAsState()
-                        val pendingUndo by keypadViewModel.pendingUndo.collectAsState()
-
-                        BackHandler { showKeypad = false }
-
-                        KeypadScreen(
-                            state = keypadState,
-                            wallets = keypadWallets,
-                            chipCategories = chipCategories,
-                            allCategories = allCategories,
-                            pendingUndo = pendingUndo,
-                            onKey = keypadViewModel::press,
-                            onSelectWallet = keypadViewModel::selectWallet,
-                            onSelectToWallet = keypadViewModel::selectToWallet,
-                            onToggleTransfer = keypadViewModel::setTransfer,
-                            onToggleCategory = keypadViewModel::toggleCategory,
-                            onCreateWallet = keypadViewModel::createWallet,
-                            onCreateCategory = keypadViewModel::createCategory,
-                            onPickDate = keypadViewModel::setOccurredAt,
-                            onCommit = keypadViewModel::commit,
-                            onCommitTransfer = keypadViewModel::commitTransfer,
-                            onUndo = keypadViewModel::undo,
-                            onUndoExpired = keypadViewModel::dismissUndo,
-                            onClose = { showKeypad = false }
-                        )
-                    } else {
-                        OkaneMainScreen(
-                            pagerState = rootPagerState,
-                            historyUiState = historyUiState,
-                            historyActions = HistoryActions(
-                                onPeriodSelected = transactionViewModel::selectHistoryPeriod,
-                                onTypeSelected = transactionViewModel::selectHistoryType,
-                                onShowUncategorised =
-                                    transactionViewModel::showUncategorisedHistory,
-                                onShowAllTransactions =
-                                    transactionViewModel::showAllHistoryTransactions,
-                                onResetFilters = transactionViewModel::resetHistoryFilters,
-                                onOpenDetail = transactionViewModel::openTransactionDetail,
-                                onDismissDetail = transactionViewModel::dismissTransactionDetail,
-                                onOpenCategoryPicker =
-                                    transactionViewModel::openHistoryCategoryPicker,
-                                onDismissCategoryPicker =
-                                    transactionViewModel::dismissHistoryCategoryPicker,
-                                onAssignCategory = transactionViewModel::assignCategory,
-                            ),
-                            walletsUiState = walletsUiState,
-                            walletActions = WalletActions(
-                                onOpenSettings = { showSettings = true },
-                                onOpenAdd = walletsViewModel::openAddWallet,
-                                onOpenDetail = walletsViewModel::openDetail,
-                                onOpenArchived = walletsViewModel::openArchived,
-                                onBack = walletsViewModel::navigateBack,
-                                onOpenEdit = walletsViewModel::openEditWallet,
-                                onDismissEditor = walletsViewModel::dismissEditor,
-                                onEditorNameChanged = walletsViewModel::updateEditorName,
-                                onEditorInitialBalanceChanged =
-                                    walletsViewModel::updateEditorInitialBalance,
-                                onEditorMonthlyFeeChanged =
-                                    walletsViewModel::updateEditorMonthlyFee,
-                                onEditorDefaultChanged = walletsViewModel::updateEditorDefault,
-                                onSaveEditor = walletsViewModel::saveEditor,
-                                onMakeDefault = walletsViewModel::makeSelectedDefault,
-                                onRequestArchive = walletsViewModel::requestArchiveSelected,
-                                onDismissArchive = walletsViewModel::dismissArchiveConfirmation,
-                                onConfirmArchive = walletsViewModel::confirmArchive,
-                                onRestore = walletsViewModel::restoreSelected,
-                                onFeedbackShown = walletsViewModel::consumeFeedback,
-                            ),
-                            onAddTransaction = { showKeypad = true }
-                        )
                     }
                 }
             }
@@ -233,6 +278,12 @@ class MainActivity : ComponentActivity() {
             // The permission does not exist before Android 13; nothing to ask.
             true
         }
+
+    private companion object {
+        // Same scrims androidx.activity uses for its default light/dark bars.
+        val LIGHT_NAV_SCRIM = Color.argb(0xe6, 0xFF, 0xFF, 0xFF)
+        val DARK_NAV_SCRIM = Color.argb(0x80, 0x1b, 0x1b, 0x1b)
+    }
 
     private fun askForPostNotificationsIfNeeded() {
         if (!postNotificationsGranted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {

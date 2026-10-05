@@ -40,6 +40,7 @@ bank.
 - KSP untuk Room dan Hilt code generation
 - SharedPreferences wrapper untuk onboarding dan toggle sumber notifikasi
 - Glance 1.1.1 hanya untuk spike widget yang masih ditunda
+- Compose motion: `AnimatedContent`, `animateItem`, `graphicsLayer` (lihat bagian 6)
 - `minSdk 26`, `targetSdk 33`, `compileSdk 36.1`
 - Java 11
 - Satu module aplikasi: `app`
@@ -201,43 +202,68 @@ Greeting home selalu berasal dari `Greeting.now()` saat composition, sehingga
 berubah sesuai waktu. Nilai yang berlaku saat ini adalah greeting Jepang
 berdasarkan pagi/siang/malam; jangan hardcode `Ohayou` pada UI.
 
-## 6. Home screen saat ini
+## 6. Home screen dan design system "calm"
 
-Home menggunakan full-bleed illustration hero statis:
+Tampilan mengikuti gaya aplikasi mindfulness: bersih, minimalis, banyak ruang
+kosong, sudut membulat, dan ilustrasi yang menenangkan (batu tumpuk dan daun).
+Render referensi dari kode asli ada di `design/calm/` (PNG per layar) dan
+`design/calm/motion/` (MP4 animasi). Mockup lama di `design/home-*.png` sudah
+tidak berlaku.
 
-- Aset: `app/src/main/res/drawable-nodpi/hero_cat.webp`.
-- Named color: `SkyBlue = #0365AD` di `ui/theme/Color.kt`.
-- Container hero memakai `SkyBlue` yang sama dengan langit ilustrasi agar seam
-  tidak terlihat.
-- Image bottom-aligned dan memakai `ContentScale.FillWidth`.
-- Jangan menggantinya dengan `ContentScale.Crop`; wajah kucing tidak boleh
-  terpotong.
-- Hero memenuhi seluruh ruang Home di atas bottom navigation dan tidak scroll.
-- Tidak ada collapsing header, parallax, nested scroll, atau feed vertikal.
-- Area teks hanya menampilkan greeting dinamis, label **“Total uangmu:”**, dan
-  total seluruh saldo wallet dari flow saldo yang sama dengan Dompetku.
-- Total memasukkan `initialBalance`, seluruh transaksi tanpa batas waktu, serta
-  wallet aktif dan archived; transfer tetap netral secara global.
-- FAB berada di kanan bawah dan membuka keypad; container putih dengan ikon
-  `SkyBlue` membuatnya tetap kontras di atas langit dan rumput.
-- Home tidak menampilkan saldo per wallet, inbox/badge tanpa kategori, transaksi
-  terbaru, empty state transaksi, atau section header lain.
+Home (`ui/dashboard/`) bisa di-scroll vertikal dan berisi, dari atas:
 
-Bottom navigation hanya tiga tujuan: **Home**, **Riwayat**, **Dompetku**.
-Pengaturan dibuka dari ikon roda gigi pada header Dompetku sebagai secondary screen.
-Background navigation bar opaque `MaterialTheme.colorScheme.surface`; tidak
-transparan di atas gambar.
+- Greeting dinamis dari `Greeting.now()` (jangan hardcode) + subjudul, dengan
+  tombol bulat Pengaturan di kanan atas.
+- `TotalMoneyCard`: label **“Total uangmu”** dan total seluruh saldo wallet dari
+  flow saldo yang sama dengan Dompetku (initialBalance + semua transaksi,
+  wallet aktif dan archived, transfer netral), dengan ilustrasi batu tumpuk.
+- “Catat cepat”: empat tile pastel — Catat (buka keypad mode Masuk/Keluar,
+  tag `homeAddTransaction`), Pindah (keypad mode transfer), Riwayat, Dompet.
+- “Kebiasaanmu”: kartu catatan beruntun (streak) dengan cincin progres menuju
+  milestone berikutnya. Logika di `domain/RecordingStreak.kt`: hari lokal dari
+  `occurredAt`; streak belum putus sebelum hari berakhir.
+- “Bulan ini”: pemasukan vs pengeluaran bulan berjalan (transfer dikecualikan,
+  memakai `SummaryCalculator`).
+- Kartu kutipan harian dari `domain/CalmQuotes.kt` (peribahasa atau kalimat
+  Okane sendiri; jangan mengatribusikan kutipan ke orang nyata).
 
-Design system memakai Plus Jakarta Sans lokal untuk seluruh semantic Material
-typography. Palette brand memakai sky blue sebagai primary, grass green sebagai
-secondary, dusty pink sebagai tertiary/expense accent, warm white untuk light
-surfaces, dan deep navy untuk dark surfaces. Dynamic color sengaja tidak aktif.
+Data non-saldo Home berasal dari `TransactionViewModel.homeUiState`
+(`HomePresenter`, pure dan teruji), yang ikut diperbarui saat tengah malam.
 
-Preview landing hero tersedia untuk ukuran 20:9, 18:9, dan tablet di `HomeHero.kt`.
-Referensi desain berada di `design/home-default.png` dan
-`design/home-empty.png`; beberapa tulisan dan lima-tab navigation pada gambar
-referensi bukan copy final. Source dan aturan di atas lebih baru daripada
-mockup tersebut.
+Bottom navigation: bar putih mengambang dengan tiga tujuan **Home**,
+**Riwayat**, **Dompetku**. Indikator pil mengikuti posisi geser pager secara
+langsung. Pengaturan bisa dibuka dari Home dan dari header Dompetku.
+
+Design system (`ui/theme/`, `ui/components/Calm.kt`):
+
+- Warna: latar `Paper` #FAFAF7, kartu putih dengan hairline, `Stone` untuk kartu
+  hero, primary sage #4E7A5D, dan empat keluarga pastel (Mint, Mist, Lavender,
+  Peach) untuk tile/chip. Warna semantik: IncomeGreen, ExpenseRed (clay),
+  TransferBlue. Semua pasangan teks lolos kontras WCAG AA. Light only; dynamic
+  color sengaja tidak aktif.
+- Tipografi: Plus Jakarta Sans lokal untuk seluruh style Material.
+- Ikon: garis tipis di `ui/icons/OkaneIcons.kt` (tanpa material-icons-extended).
+- Ilustrasi: digambar dengan Canvas di `ui/illustration/CalmIllustrations.kt`,
+  bisa dianimasikan lewat parameter `progress`. Tidak ada bitmap.
+- Komponen: `CalmCard`, `PastelTile`, `CalmChip`, `CalmButton`/`CalmPrimaryButton`,
+  `CalmFab`, `CalmBottomSheet`, `AnimatedAmountText`, `ProgressRing`. Pakai ini
+  alih-alih menata komponen Material ad hoc.
+
+Motion (`ui/theme/Motion.kt`, `OkaneMotion`): satu kosakata easing dan durasi
+(200–450 ms, emphasized decelerate). Aturan agar tetap halus:
+
+- Efek tekan (`Modifier.pressScale`) dan animasi masuk (`Modifier.calmEntrance`)
+  berjalan lewat `graphicsLayer`, jadi tidak memicu recomposition per frame.
+- Pergantian surface utama (`ui/navigation/OkaneRoute.kt`) memakai
+  `AnimatedContent` dengan pola fade-through; keypad naik dari bawah,
+  pengaturan masuk dari samping. `SaveableStateHolder` di MainActivity menjaga
+  posisi scroll saat keypad dibuka.
+- Daftar memakai `Modifier.animateItem()`; angka memakai `AnimatedAmountText`.
+- Haptic ringan pada keypad (`VirtualKey`), chip (`SegmentTick`), dan commit
+  (`Confirm`).
+
+Splash Android 12+ dan ikon launcher memakai batu tumpuk sage yang sama
+(`ic_splash_logo.xml`, `ic_launcher_*.xml`), dengan latar `@color/paper`.
 
 ## 7. Model database
 
@@ -407,7 +433,9 @@ saat dokumen dibuat, bukan jaminan untuk perubahan berikutnya.
 |---|---|
 | Build | `app/build.gradle.kts`, `gradle/libs.versions.toml` |
 | Routing | `MainActivity.kt`, `ui/OkaneMainScreen.kt` |
-| Home | `ui/dashboard/DashboardScreen.kt`, `ui/dashboard/HomeHero.kt` |
+| Home | `ui/dashboard/DashboardScreen.kt`, `HomeHero.kt`, `HomeUiState.kt`, `domain/RecordingStreak.kt` |
+| Design system | `ui/theme/`, `ui/components/Calm.kt`, `ui/icons/`, `ui/illustration/` |
+| Routing animasi | `ui/navigation/OkaneRoute.kt` |
 | Keypad | `ui/keypad/KeypadScreen.kt`, `KeypadViewModel.kt`, `domain/keypad/KeypadState.kt` |
 | Onboarding | `ui/onboarding/OnboardingScreen.kt`, `OnboardingViewModel.kt` |
 | Notification | `service/OkaneNotificationListenerService.kt`, `domain/parser/` |
@@ -464,9 +492,9 @@ Ketika diminta merancang atau mengevaluasi perubahan:
    uncategorised recovery, dan transfer pada perubahan UI/data.
 7. Untuk perubahan schema, selalu sertakan entity + DAO + migration + exported
    schema + test plan.
-8. Untuk perubahan home hero, jangan memakai `ContentScale.Crop`, pertahankan
-   label persis `Total uangmu:`, gunakan total saldo wallet all-time dari flow
-   repository yang juga dipakai Dompetku, dan jangan hardcode greeting.
+8. Untuk perubahan Home, gunakan total saldo wallet all-time dari flow
+   repository yang juga dipakai Dompetku, jangan hardcode greeting, dan pakai
+   komponen serta `OkaneMotion` dari design system calm (bagian 6).
 9. Jangan mengubah calculator atau onboarding hanya karena sedang mengubah home
    screen, kecuali cakupan tugas secara eksplisit mencakupnya.
 

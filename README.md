@@ -43,6 +43,18 @@ Room's schema export (`exportSchema = true`) must stay on, and the JSON files in
 `app/schemas/` must be kept — they are the reference the migrations are checked
 against.
 
+## Visual design
+
+The UI follows a calm, mindfulness-app style: warm paper background, white
+cards with hairlines, a sage primary, soft pastel tiles, thin line icons and
+Canvas-drawn stone and leaf illustrations. Motion is deliberate and shared
+(`ui/theme/Motion.kt`): fade-through between surfaces, press feedback and
+entrances on `graphicsLayer`, animated list items and amounts.
+
+Renders of every screen, produced from the real Compose code, live in
+`design/calm/`, with short motion clips in `design/calm/motion/`. The design
+system is described in `docs/AI_CONTEXT.md`, section 6.
+
 ---
 
 ## Design rationale

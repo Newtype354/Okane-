@@ -1,113 +1,104 @@
 package com.example.okane.ui.dashboard
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.okane.R
+import com.example.okane.ui.components.AnimatedAmountText
+import com.example.okane.ui.components.CalmTokens
 import com.example.okane.ui.format.Formatters
-import com.example.okane.ui.theme.SkyBlue
-import com.example.okane.ui.theme.White
+import com.example.okane.ui.illustration.StackedStones
+import com.example.okane.ui.theme.OkaneMotion
+import com.example.okane.ui.theme.Stone
+import com.example.okane.ui.theme.SageMist
 
-/** Static, full-bleed landing hero. The illustration is fit to width, never cropped. */
+/**
+ * Home's hero: the all-wallet total on a soft stone card, with the cairn
+ * illustration settling into place the first time it appears.
+ *
+ * The total is the same computed-balance sum Dompetku shows (initial balances
+ * plus every transaction, archived wallets included, transfers neutral).
+ */
 @Composable
-fun HomeHero(
-    greeting: String,
-    totalRecorded: Long,
-    modifier: Modifier = Modifier
+fun TotalMoneyCard(
+    totalMoney: Long,
+    caption: String,
+    modifier: Modifier = Modifier,
 ) {
-    var started by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { started = true }
-    val fraction by animateFloatAsState(
-        targetValue = if (started) 1f else 0f,
-        animationSpec = tween(900),
-        label = "recordedTotalCount"
+    var settled by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(Unit) { settled = true }
+    val stones by animateFloatAsState(
+        targetValue = if (settled) 1f else 0f,
+        animationSpec = OkaneMotion.enter(duration = 1400, delay = 150),
+        label = "heroStones",
     )
-    val shown = (totalRecorded.toDouble() * fraction).toLong()
-    val formattedTotal = Formatters.balanceRupiah(shown)
-    val amountSize = when {
-        formattedTotal.length > 20 -> 26.sp
-        formattedTotal.length > 16 -> 30.sp
-        else -> 38.sp
-    }
 
     Box(
         modifier = modifier
-            .fillMaxSize()
-            .background(SkyBlue)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(CalmTokens.cardRadius))
+            .background(Brush.linearGradient(listOf(Stone, Stone, SageMist.copy(alpha = 0.7f))))
+            .testTag("homeTotal"),
     ) {
-        Image(
-            painter = painterResource(R.drawable.hero_cat),
-            contentDescription = null,
-            contentScale = ContentScale.FillWidth,
-            alignment = Alignment.BottomCenter,
-            modifier = Modifier
-                .fillMaxWidth()
-                .align(Alignment.BottomCenter)
-        )
-
-        Column(
-            modifier = Modifier
-                .statusBarsPadding()
-                .padding(start = 24.dp, end = 24.dp, top = 28.dp)
+        Row(
+            modifier = Modifier.padding(start = 22.dp, top = 22.dp, bottom = 22.dp, end = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = greeting,
-                style = MaterialTheme.typography.headlineLarge.copy(fontSize = 36.sp),
-                fontWeight = FontWeight.Bold,
-                color = White
-            )
-            Text(
-                text = "Total uangmu:",
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Medium,
-                ),
-                color = White.copy(alpha = 0.88f),
-                modifier = Modifier.padding(top = 24.dp)
-            )
-            Text(
-                text = formattedTotal,
-                style = MaterialTheme.typography.displaySmall.copy(
-                    fontSize = amountSize,
-                    fontWeight = FontWeight.SemiBold,
-                    fontFeatureSettings = "tnum",
-                ),
-                color = White,
-                maxLines = 1,
-                softWrap = false,
-                modifier = Modifier.padding(top = 2.dp)
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Total uangmu",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                val formatted = Formatters.balanceRupiah(totalMoney)
+                AnimatedAmountText(
+                    value = totalMoney,
+                    format = Formatters::balanceRupiah,
+                    startFromZero = true,
+                    style = MaterialTheme.typography.headlineMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = when {
+                            formatted.length > 16 -> 22.sp
+                            formatted.length > 13 -> 25.sp
+                            else -> 28.sp
+                        },
+                        fontFeatureSettings = "tnum",
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(top = 6.dp),
+                )
+                Text(
+                    text = caption,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 6.dp),
+                )
+            }
+            StackedStones(
+                progress = stones,
+                modifier = Modifier.size(width = 112.dp, height = 104.dp),
             )
         }
     }
-}
-
-@Preview(name = "Home 20:9", widthDp = 360, heightDp = 720, showBackground = true)
-@Preview(name = "Home 18:9", widthDp = 432, heightDp = 768, showBackground = true)
-@Preview(name = "Home tablet", widthDp = 800, heightDp = 1100, showBackground = true)
-@Composable
-private fun HomeHeroPreview() {
-    HomeHero(greeting = "Konnichiwa", totalRecorded = 12_500_000)
 }

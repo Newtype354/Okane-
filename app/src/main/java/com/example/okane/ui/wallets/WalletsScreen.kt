@@ -1,72 +1,95 @@
 package com.example.okane.ui.wallets
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.okane.data.local.WalletBalance
-import com.example.okane.ui.components.GlassSurface
-import com.example.okane.ui.components.GlassVariant
+import com.example.okane.ui.components.AnimatedAmountText
+import com.example.okane.ui.components.CalmBottomSheet
+import com.example.okane.ui.components.CalmCard
+import com.example.okane.ui.components.CalmIconButton
+import com.example.okane.ui.components.CalmPrimaryButton
+import com.example.okane.ui.components.CalmSecondaryButton
+import com.example.okane.ui.components.CalmTokens
 import com.example.okane.ui.components.SectionHeader
 import com.example.okane.ui.components.StatusChip
+import com.example.okane.ui.components.pressScale
 import com.example.okane.ui.format.Formatters
-import com.example.okane.ui.theme.IncomeGreen
+import com.example.okane.ui.icons.OkaneIcons
+import com.example.okane.ui.illustration.Pebbles
+import com.example.okane.ui.theme.ExpenseRed
+import com.example.okane.ui.theme.ExpenseSoft
+import com.example.okane.ui.theme.Ink
+import com.example.okane.ui.theme.Lavender
+import com.example.okane.ui.theme.LavenderInk
+import com.example.okane.ui.theme.Mint
+import com.example.okane.ui.theme.Mist
+import com.example.okane.ui.theme.MistInk
+import com.example.okane.ui.theme.OkaneMotion
+import com.example.okane.ui.theme.Peach
+import com.example.okane.ui.theme.PeachInk
+import com.example.okane.ui.theme.SageInk
+import com.example.okane.ui.theme.SageMist
+import com.example.okane.ui.theme.Stone
 
 data class WalletActions(
     val onOpenSettings: () -> Unit,
@@ -89,7 +112,6 @@ data class WalletActions(
     val onFeedbackShown: () -> Unit,
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WalletsScreen(
     state: WalletsUiState,
@@ -106,52 +128,67 @@ fun WalletsScreen(
 
     BackHandler(enabled = state.hasOpenSecondarySurface) { actions.onBack() }
 
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        containerColor = MaterialTheme.colorScheme.background,
-        snackbarHost = {
-            SnackbarHost(
-                hostState = snackbarHostState,
-                modifier = Modifier
-                    .navigationBarsPadding()
-                    .padding(bottom = 92.dp),
-            )
-        },
-        topBar = {
-            when (state.surface) {
-                WalletSurface.ROOT -> WalletRootTopBar(actions.onOpenSettings)
-                WalletSurface.ARCHIVED -> WalletBackTopBar(
-                    title = "Dompet diarsipkan",
-                    onBack = actions.onBack,
-                )
-                WalletSurface.DETAIL -> WalletBackTopBar(
-                    title = "Detail dompet",
-                    onBack = actions.onBack,
-                )
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        // ROOT → DETAIL / ARCHIVED slides forward, back slides the other way,
+        // so the three surfaces read as one small stack rather than a swap.
+        AnimatedContent(
+            targetState = state.surface,
+            transitionSpec = { walletSurfaceTransition(initialState, targetState) },
+            label = "walletSurface",
+            modifier = Modifier.fillMaxSize(),
+        ) { surface ->
+            Column(modifier = Modifier.fillMaxSize()) {
+                when (surface) {
+                    WalletSurface.ROOT -> {
+                        RootHeader(actions.onOpenSettings)
+                        WalletRootContent(state, actions)
+                    }
+                    WalletSurface.ARCHIVED -> {
+                        BackHeader(title = "Dompet diarsipkan", onBack = actions.onBack)
+                        ArchivedWalletContent(state, actions)
+                    }
+                    WalletSurface.DETAIL -> {
+                        BackHeader(title = "Detail dompet", onBack = actions.onBack)
+                        WalletDetailContent(state, actions)
+                    }
+                }
             }
-        },
-    ) { innerPadding ->
-        Box(
+        }
+
+        AnimatedVisibility(
+            visible = state.operationInProgress,
+            enter = fadeIn(),
+            exit = fadeOut(),
             modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
+                .align(Alignment.TopCenter)
+                .statusBarsPadding(),
+        ) {
+            LinearProgressIndicator(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("walletOperationProgress"),
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = SageMist,
+            )
+        }
+
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
                 .padding(bottom = 92.dp),
-        ) {
-            when (state.surface) {
-                WalletSurface.ROOT -> WalletRootContent(state, actions)
-                WalletSurface.ARCHIVED -> ArchivedWalletContent(state, actions)
-                WalletSurface.DETAIL -> WalletDetailContent(state, actions)
-            }
-
-            if (state.operationInProgress) {
-                LinearProgressIndicator(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .align(Alignment.TopCenter)
-                        .testTag("walletOperationProgress")
-                )
-            }
+        ) { data ->
+            Snackbar(
+                snackbarData = data,
+                shape = RoundedCornerShape(CalmTokens.controlRadius),
+                containerColor = Ink,
+                contentColor = Color.White,
+            )
         }
     }
 
@@ -173,43 +210,69 @@ fun WalletsScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun WalletRootTopBar(onOpenSettings: () -> Unit) {
-    CenterAlignedTopAppBar(
-        title = { Text("Dompetku", style = MaterialTheme.typography.titleLarge) },
-        actions = {
-            IconButton(
-                onClick = onOpenSettings,
-                modifier = Modifier
-                    .size(48.dp)
-                    .testTag("walletSettings"),
-            ) {
-                Icon(Icons.Filled.Settings, contentDescription = "Pengaturan")
-            }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.background,
-            titleContentColor = MaterialTheme.colorScheme.onBackground,
-        ),
-    )
+private fun walletSurfaceTransition(from: WalletSurface, to: WalletSurface): ContentTransform {
+    val forward = to.ordinal > from.ordinal || from == WalletSurface.ROOT
+    val direction = if (forward) 1 else -1
+    return (slideInHorizontally(OkaneMotion.enter()) { width -> direction * width / 5 } +
+        fadeIn(OkaneMotion.enter())) togetherWith
+        (slideOutHorizontally(OkaneMotion.exit()) { width -> -direction * width / 10 } +
+            fadeOut(OkaneMotion.exit()))
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun WalletBackTopBar(title: String, onBack: () -> Unit) {
-    CenterAlignedTopAppBar(
-        title = { Text(title, style = MaterialTheme.typography.titleLarge) },
-        navigationIcon = {
-            IconButton(onClick = onBack, modifier = Modifier.size(48.dp)) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Kembali")
-            }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.background,
-            titleContentColor = MaterialTheme.colorScheme.onBackground,
-        ),
-    )
+private fun RootHeader(onOpenSettings: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .statusBarsPadding()
+            .padding(start = CalmTokens.screenPadding, end = CalmTokens.screenPadding, top = 16.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                "Dompetku",
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+            Text(
+                "Tempat uangmu beristirahat",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+        }
+        CalmIconButton(
+            icon = OkaneIcons.Settings,
+            contentDescription = "Pengaturan",
+            onClick = onOpenSettings,
+            container = Stone,
+            size = 48.dp,
+            modifier = Modifier.testTag("walletSettings"),
+        )
+    }
+}
+
+@Composable
+private fun BackHeader(title: String, onBack: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .statusBarsPadding()
+            .padding(start = 16.dp, end = CalmTokens.screenPadding, top = 12.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        CalmIconButton(
+            icon = OkaneIcons.ChevronLeft,
+            contentDescription = "Kembali",
+            onClick = onBack,
+            size = 44.dp,
+        )
+        Text(
+            title,
+            style = MaterialTheme.typography.titleLarge,
+            modifier = Modifier.padding(start = 14.dp),
+        )
+    }
 }
 
 @Composable
@@ -218,10 +281,15 @@ private fun WalletRootContent(state: WalletsUiState, actions: WalletActions) {
         modifier = Modifier
             .fillMaxSize()
             .testTag("walletList"),
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(
+            start = CalmTokens.screenPadding,
+            end = CalmTokens.screenPadding,
+            top = 12.dp,
+            bottom = 140.dp,
+        ),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        item {
+        item(key = "wallet-total") {
             TotalMoneyPanel(
                 totalMoney = state.totalMoney,
                 showArchivedNote = state.archivedContributesToTotal,
@@ -229,103 +297,131 @@ private fun WalletRootContent(state: WalletsUiState, actions: WalletActions) {
         }
 
         if (state.activeWallets.isNotEmpty()) {
-            item {
-                Button(
+            item(key = "wallet-add") {
+                CalmPrimaryButton(
+                    text = "Tambah dompet",
+                    icon = OkaneIcons.Plus,
                     onClick = actions.onOpenAdd,
                     enabled = !state.operationInProgress,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(52.dp)
+                        .padding(top = 4.dp)
                         .testTag("addWallet"),
-                    shape = RoundedCornerShape(14.dp),
-                ) {
-                    Icon(Icons.Filled.Add, contentDescription = null)
-                    Text("Tambah dompet", modifier = Modifier.padding(start = 8.dp))
-                }
+                )
             }
-            item {
-                SectionHeader("Dompet aktif", modifier = Modifier.padding(top = 8.dp))
+            item(key = "wallet-active-header") {
+                SectionHeader("Dompet aktif", modifier = Modifier.padding(top = 12.dp, start = 4.dp))
             }
             items(state.activeWallets, key = WalletBalance::walletId) { wallet ->
                 WalletRow(
                     wallet = wallet,
                     archived = false,
                     onClick = { actions.onOpenDetail(wallet.walletId, false) },
+                    modifier = Modifier.animateItem(),
                 )
             }
         } else if (state.isLoading) {
-            item {
+            item(key = "wallet-loading") {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 36.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    CircularProgressIndicator()
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                 }
             }
         } else {
-            item { WalletEmptyState(actions.onOpenAdd) }
+            item(key = "wallet-empty") { WalletEmptyState(actions.onOpenAdd) }
         }
 
-        item {
-            OutlinedButton(
+        item(key = "wallet-archived") {
+            CalmSecondaryButton(
+                text = if (state.archivedWallets.isEmpty()) {
+                    "Lihat dompet diarsipkan"
+                } else {
+                    "Lihat dompet diarsipkan (${state.archivedWallets.size})"
+                },
+                icon = OkaneIcons.Archive,
                 onClick = actions.onOpenArchived,
                 enabled = !state.operationInProgress,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(52.dp)
+                    .padding(top = 8.dp)
                     .testTag("openArchivedWallets"),
-                shape = RoundedCornerShape(14.dp),
-            ) {
-                Icon(ArchiveMaterialIcon, contentDescription = null)
-                Text(
-                    if (state.archivedWallets.isEmpty()) {
-                        "Lihat dompet diarsipkan"
-                    } else {
-                        "Lihat dompet diarsipkan (${state.archivedWallets.size})"
-                    },
-                    modifier = Modifier.padding(start = 8.dp),
-                )
-            }
+            )
         }
     }
 }
 
 @Composable
 private fun TotalMoneyPanel(totalMoney: Long, showArchivedNote: Boolean) {
-    GlassSurface(
-        variant = GlassVariant.Subtle,
+    Box(
         modifier = Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(CalmTokens.cardRadius))
+            .background(Brush.linearGradient(listOf(Stone, Stone, SageMist.copy(alpha = 0.7f))))
             .testTag("walletTotal"),
-        contentPadding = PaddingValues(20.dp),
     ) {
-        Column {
-            Text(
-                "Total uangmu",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                Formatters.balanceRupiah(totalMoney),
-                style = MaterialTheme.typography.headlineLarge,
-                fontWeight = FontWeight.Bold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier
-                    .padding(top = 4.dp)
-                    .testTag("walletTotalAmount"),
-            )
-            if (showArchivedNote) {
+        Row(
+            modifier = Modifier.padding(start = 22.dp, top = 20.dp, bottom = 20.dp, end = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    "Termasuk dompet diarsipkan",
-                    style = MaterialTheme.typography.bodySmall,
+                    "Total uangmu",
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 8.dp),
                 )
+                AnimatedAmountText(
+                    value = totalMoney,
+                    format = Formatters::balanceRupiah,
+                    style = MaterialTheme.typography.headlineMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontFeatureSettings = "tnum",
+                    ),
+                    modifier = Modifier
+                        .padding(top = 4.dp)
+                        .testTag("walletTotalAmount"),
+                )
+                if (showArchivedNote) {
+                    Text(
+                        "Termasuk dompet diarsipkan",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 6.dp),
+                    )
+                }
             }
+            Pebbles(modifier = Modifier.size(width = 84.dp, height = 56.dp))
         }
+    }
+}
+
+/** Soft, stable avatar colours: the same wallet always gets the same tint. */
+private val AvatarTints = listOf(
+    Mint to SageInk,
+    Mist to MistInk,
+    Lavender to LavenderInk,
+    Peach to PeachInk,
+)
+
+@Composable
+private fun WalletAvatar(wallet: WalletBalance, modifier: Modifier = Modifier, size: Int = 44) {
+    val (container, ink) = AvatarTints[Math.floorMod(wallet.walletId, AvatarTints.size.toLong()).toInt()]
+    Box(
+        modifier = modifier
+            .size(size.dp)
+            .clip(CircleShape)
+            .background(if (wallet.isArchived) Stone else container),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            OkaneIcons.Wallet,
+            contentDescription = null,
+            tint = if (wallet.isArchived) MaterialTheme.colorScheme.onSurfaceVariant else ink,
+            modifier = Modifier.size((size * 0.5f).dp),
+        )
     }
 }
 
@@ -334,6 +430,7 @@ private fun WalletRow(
     wallet: WalletBalance,
     archived: Boolean,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val balanceText = Formatters.balanceRupiah(wallet.balance)
     val description = buildString {
@@ -347,21 +444,32 @@ private fun WalletRow(
             append(Formatters.rupiah(wallet.monthlyFee))
         }
     }
+    val interaction = remember { MutableInteractionSource() }
     Surface(
         onClick = onClick,
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
+            .pressScale(interaction, 0.985f)
             .semantics(mergeDescendants = true) { contentDescription = description }
             .testTag("walletRow-${wallet.walletId}"),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(CalmTokens.tileRadius),
         color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.45f)),
+        border = androidx.compose.foundation.BorderStroke(
+            CalmTokens.hairline,
+            MaterialTheme.colorScheme.outlineVariant,
+        ),
+        interactionSource = interaction,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(modifier = Modifier.weight(1f)) {
+            WalletAvatar(wallet)
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 12.dp),
+            ) {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -369,7 +477,6 @@ private fun WalletRow(
                     Text(
                         wallet.name,
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.weight(1f, fill = false),
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
@@ -378,31 +485,32 @@ private fun WalletRow(
                         StatusChip(text = "Utama", color = MaterialTheme.colorScheme.primary)
                     }
                     if (archived) {
-                        StatusChip(text = "Diarsipkan", color = MaterialTheme.colorScheme.outline)
+                        StatusChip(text = "Diarsipkan", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
                 Text(
                     balanceText,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.titleLarge.copy(fontFeatureSettings = "tnum"),
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 3.dp),
+                    modifier = Modifier.padding(top = 2.dp),
                 )
                 if (wallet.monthlyFee > 0) {
                     Text(
                         "Admin bulanan ${Formatters.rupiah(wallet.monthlyFee)}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 4.dp),
+                        modifier = Modifier.padding(top = 2.dp),
                     )
                 }
             }
             Icon(
-                Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                OkaneIcons.ChevronRight,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 8.dp),
+                modifier = Modifier
+                    .padding(start = 8.dp)
+                    .size(20.dp),
             )
         }
     }
@@ -410,38 +518,32 @@ private fun WalletRow(
 
 @Composable
 private fun WalletEmptyState(onAdd: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 28.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Icon(
-            WalletMaterialIcon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(42.dp),
-        )
-        Text(
-            "Belum ada dompet",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(top = 12.dp),
-        )
-        Text(
-            "Tambahkan dompet untuk mulai mencatat sumber uangmu.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 6.dp),
-        )
-        Button(
-            onClick = onAdd,
-            modifier = Modifier
-                .padding(top = 16.dp)
-                .height(52.dp)
-                .testTag("emptyAddWallet"),
+    CalmCard(modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(24.dp)) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text("Tambah dompet")
+            Pebbles(modifier = Modifier.size(width = 120.dp, height = 72.dp))
+            Text(
+                "Belum ada dompet",
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(top = 12.dp),
+            )
+            Text(
+                "Tambahkan dompet untuk mulai mencatat sumber uangmu.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 6.dp),
+            )
+            CalmPrimaryButton(
+                text = "Tambah dompet",
+                icon = OkaneIcons.Plus,
+                onClick = onAdd,
+                modifier = Modifier
+                    .padding(top = 16.dp)
+                    .testTag("emptyAddWallet"),
+            )
         }
     }
 }
@@ -456,26 +558,40 @@ private fun ArchivedWalletContent(state: WalletsUiState, actions: WalletActions)
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            Text("Belum ada dompet diarsipkan", style = MaterialTheme.typography.titleMedium)
+            Pebbles(modifier = Modifier.size(width = 120.dp, height = 72.dp))
+            Text(
+                "Belum ada dompet diarsipkan",
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(top = 12.dp),
+            )
             Text(
                 "Dompet yang diarsipkan akan tetap menyimpan transaksi dan saldonya.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
                 modifier = Modifier.padding(top = 8.dp),
             )
         }
         return
     }
     LazyColumn(
-        modifier = Modifier.fillMaxSize().testTag("archivedWalletList"),
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .testTag("archivedWalletList"),
+        contentPadding = PaddingValues(
+            start = CalmTokens.screenPadding,
+            end = CalmTokens.screenPadding,
+            top = 12.dp,
+            bottom = 140.dp,
+        ),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         items(state.archivedWallets, key = WalletBalance::walletId) { wallet ->
             WalletRow(
                 wallet = wallet,
                 archived = true,
                 onClick = { actions.onOpenDetail(wallet.walletId, true) },
+                modifier = Modifier.animateItem(),
             )
         }
     }
@@ -486,7 +602,9 @@ private fun WalletDetailContent(state: WalletsUiState, actions: WalletActions) {
     val wallet = state.selectedWallet
     if (wallet == null) {
         Column(
-            modifier = Modifier.fillMaxSize().padding(24.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
@@ -497,106 +615,126 @@ private fun WalletDetailContent(state: WalletsUiState, actions: WalletActions) {
     }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().testTag("walletDetail"),
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .testTag("walletDetail"),
+        contentPadding = PaddingValues(
+            start = CalmTokens.screenPadding,
+            end = CalmTokens.screenPadding,
+            top = 12.dp,
+            bottom = 140.dp,
+        ),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         item {
-            GlassSurface(
-                variant = GlassVariant.Subtle,
-                modifier = Modifier.fillMaxWidth(),
-                contentPadding = PaddingValues(20.dp),
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(CalmTokens.cardRadius))
+                    .background(Brush.linearGradient(listOf(Stone, Stone, SageMist.copy(alpha = 0.7f)))),
             ) {
-                Column {
-                    Text(
-                        wallet.name,
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                    )
+                Column(modifier = Modifier.padding(22.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        WalletAvatar(wallet, size = 48)
+                        Text(
+                            wallet.name,
+                            style = MaterialTheme.typography.headlineSmall,
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(start = 12.dp),
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        if (wallet.isDefault) {
+                            StatusChip(text = "Utama", color = MaterialTheme.colorScheme.primary)
+                        }
+                    }
                     Text(
                         "Saldo saat ini",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 16.dp),
+                        modifier = Modifier.padding(top = 18.dp),
                     )
-                    Text(
-                        Formatters.balanceRupiah(wallet.balance),
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 2,
+                    AnimatedAmountText(
+                        value = wallet.balance,
+                        format = Formatters::balanceRupiah,
+                        style = MaterialTheme.typography.headlineMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontFeatureSettings = "tnum",
+                        ),
                     )
                 }
             }
         }
         item {
-            Surface(
+            CalmCard(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.colorScheme.surface,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.45f)),
+                contentPadding = PaddingValues(horizontal = 18.dp, vertical = 6.dp),
             ) {
-                Column(modifier = Modifier.padding(18.dp)) {
-                    DetailLine("Nama wallet", wallet.name)
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
-                    DetailLine("Saldo awal", Formatters.balanceRupiah(wallet.initialBalance))
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
-                    DetailLine("Biaya admin bulanan", Formatters.rupiah(wallet.monthlyFee))
-                    Text(
-                        "Hanya informasi, belum dipotong otomatis.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 4.dp),
-                    )
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
-                    DetailLine("Status utama", if (wallet.isDefault) "Utama" else "Bukan utama")
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
-                    DetailLine("Status", if (wallet.isArchived) "Diarsipkan" else "Aktif")
-                }
+                DetailLine("Nama dompet", wallet.name)
+                DetailDivider()
+                DetailLine("Saldo awal", Formatters.balanceRupiah(wallet.initialBalance))
+                DetailDivider()
+                DetailLine("Biaya admin bulanan", Formatters.rupiah(wallet.monthlyFee))
+                Text(
+                    "Hanya informasi, belum dipotong otomatis.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 10.dp),
+                )
+                DetailDivider()
+                DetailLine("Status utama", if (wallet.isDefault) "Utama" else "Bukan utama")
+                DetailDivider()
+                DetailLine("Status", if (wallet.isArchived) "Diarsipkan" else "Aktif")
             }
         }
         if (wallet.isArchived) {
             item {
-                Button(
+                CalmPrimaryButton(
+                    text = "Aktifkan kembali",
+                    icon = OkaneIcons.Restore,
                     onClick = actions.onRestore,
                     enabled = !state.operationInProgress,
-                    modifier = Modifier.fillMaxWidth().height(52.dp).testTag("restoreWallet"),
-                ) {
-                    Text("Aktifkan kembali")
-                }
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("restoreWallet"),
+                )
             }
         } else {
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedButton(
+                    CalmSecondaryButton(
+                        text = "Edit",
+                        icon = OkaneIcons.Pencil,
                         onClick = actions.onOpenEdit,
                         enabled = !state.operationInProgress,
-                        modifier = Modifier.fillMaxWidth().height(52.dp).testTag("editWallet"),
-                    ) {
-                        Icon(Icons.Filled.Edit, contentDescription = null)
-                        Text("Edit", modifier = Modifier.padding(start = 8.dp))
-                    }
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("editWallet"),
+                    )
                     if (!wallet.isDefault) {
-                        OutlinedButton(
+                        CalmSecondaryButton(
+                            text = "Jadikan utama",
+                            icon = OkaneIcons.Star,
                             onClick = actions.onMakeDefault,
                             enabled = !state.operationInProgress,
-                            modifier = Modifier.fillMaxWidth().height(52.dp).testTag("makeDefaultWallet"),
-                        ) {
-                            Icon(Icons.Filled.CheckCircle, contentDescription = null)
-                            Text("Jadikan utama", modifier = Modifier.padding(start = 8.dp))
-                        }
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("makeDefaultWallet"),
+                        )
                     }
-                    Button(
+                    CalmSecondaryButton(
+                        text = "Arsipkan",
+                        icon = OkaneIcons.Archive,
                         onClick = actions.onRequestArchive,
                         enabled = !state.operationInProgress,
-                        modifier = Modifier.fillMaxWidth().height(52.dp).testTag("archiveWallet"),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer,
-                            contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                        ),
-                    ) {
-                        Icon(ArchiveMaterialIcon, contentDescription = null)
-                        Text("Arsipkan", modifier = Modifier.padding(start = 8.dp))
-                    }
+                        container = ExpenseSoft,
+                        content = ExpenseRed,
+                        bordered = false,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("archiveWallet"),
+                    )
                 }
             }
         }
@@ -604,9 +742,16 @@ private fun WalletDetailContent(state: WalletsUiState, actions: WalletActions) {
 }
 
 @Composable
+private fun DetailDivider() {
+    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+}
+
+@Composable
 private fun DetailLine(label: String, value: String) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.Top,
     ) {
@@ -618,8 +763,9 @@ private fun DetailLine(label: String, value: String) {
         )
         Text(
             value,
-            style = MaterialTheme.typography.bodyLarge,
+            style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Medium,
+            textAlign = TextAlign.End,
             modifier = Modifier.weight(1.25f),
         )
     }
@@ -632,8 +778,10 @@ private fun WalletEditorSheet(
     operationInProgress: Boolean,
     actions: WalletActions,
 ) {
-    ModalBottomSheet(
+    // A form opens fully: half-open would hide the save button below the fold.
+    CalmBottomSheet(
         onDismissRequest = actions.onDismissEditor,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         modifier = Modifier.testTag("walletEditor"),
     ) {
         Column(
@@ -646,7 +794,6 @@ private fun WalletEditorSheet(
             Text(
                 if (editor.mode == WalletEditorMode.ADD) "Tambah dompet" else "Edit dompet",
                 style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
             )
             OutlinedTextField(
                 value = editor.name,
@@ -656,7 +803,11 @@ private fun WalletEditorSheet(
                 supportingText = editor.errorMessage?.let { message -> ({ Text(message) }) },
                 singleLine = true,
                 enabled = !operationInProgress,
-                modifier = Modifier.fillMaxWidth().testTag("walletNameInput"),
+                shape = RoundedCornerShape(CalmTokens.controlRadius),
+                colors = calmFieldColors(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("walletNameInput"),
             )
             WalletAmountField(
                 label = "Saldo awal",
@@ -666,7 +817,7 @@ private fun WalletEditorSheet(
             )
             if (editor.mode == WalletEditorMode.EDIT) {
                 Text(
-                    "Mengubah saldo awal akan menyesuaikan saldo tercatat wallet ini.",
+                    "Mengubah saldo awal akan menyesuaikan saldo tercatat dompet ini.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -682,50 +833,69 @@ private fun WalletEditorSheet(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(
-                        enabled = !editor.defaultLocked && !operationInProgress,
-                        onClick = { actions.onEditorDefaultChanged(!editor.makeDefault) },
-                    )
-                    .padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
+            Surface(
+                shape = RoundedCornerShape(CalmTokens.controlRadius),
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                modifier = Modifier.fillMaxWidth(),
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Wallet utama", style = MaterialTheme.typography.bodyLarge)
-                    if (editor.defaultLocked) {
-                        Text(
-                            "Pilih wallet aktif lain untuk mengganti wallet utama.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(
+                            enabled = !editor.defaultLocked && !operationInProgress,
+                            onClick = { actions.onEditorDefaultChanged(!editor.makeDefault) },
                         )
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Dompet utama", style = MaterialTheme.typography.bodyLarge)
+                        if (editor.defaultLocked) {
+                            Text(
+                                "Pilih dompet aktif lain untuk mengganti dompet utama.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
+                    Switch(
+                        checked = editor.makeDefault,
+                        onCheckedChange = actions.onEditorDefaultChanged,
+                        enabled = !editor.defaultLocked && !operationInProgress,
+                        colors = SwitchDefaults.colors(
+                            checkedTrackColor = MaterialTheme.colorScheme.primary,
+                            uncheckedTrackColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            uncheckedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                        ),
+                    )
                 }
-                Switch(
-                    checked = editor.makeDefault,
-                    onCheckedChange = actions.onEditorDefaultChanged,
-                    enabled = !editor.defaultLocked && !operationInProgress,
-                )
             }
-            Button(
+            CalmPrimaryButton(
+                text = if (operationInProgress) {
+                    "Menyimpan…"
+                } else if (editor.mode == WalletEditorMode.ADD) {
+                    "Tambah dompet"
+                } else {
+                    "Simpan perubahan"
+                },
                 onClick = actions.onSaveEditor,
                 enabled = !operationInProgress,
-                modifier = Modifier.fillMaxWidth().height(52.dp).testTag("saveWallet"),
-            ) {
-                if (operationInProgress) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(22.dp),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.onPrimary,
-                    )
-                } else {
-                    Text(if (editor.mode == WalletEditorMode.ADD) "Tambah dompet" else "Simpan perubahan")
-                }
-            }
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp)
+                    .testTag("saveWallet"),
+            )
         }
     }
 }
+
+@Composable
+private fun calmFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedBorderColor = MaterialTheme.colorScheme.primary,
+    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+    focusedContainerColor = MaterialTheme.colorScheme.surface,
+    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+)
 
 @Composable
 private fun WalletAmountField(
@@ -747,6 +917,8 @@ private fun WalletAmountField(
         singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         enabled = enabled,
+        shape = RoundedCornerShape(CalmTokens.controlRadius),
+        colors = calmFieldColors(),
         modifier = Modifier.fillMaxWidth(),
     )
 }
@@ -760,12 +932,21 @@ private fun ArchiveWalletDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        icon = { Icon(ArchiveMaterialIcon, contentDescription = null) },
+        shape = RoundedCornerShape(28.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        icon = {
+            Icon(
+                OkaneIcons.Archive,
+                contentDescription = null,
+                tint = ExpenseRed,
+            )
+        },
         title = { Text("Arsipkan dompet?") },
         text = {
             Text(
                 "$walletName tidak akan muncul saat mencatat transaksi baru, " +
-                    "tetapi transaksi lama dan saldonya tetap tersimpan."
+                    "tetapi transaksi lama dan saldonya tetap tersimpan.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         },
         confirmButton = {
@@ -774,7 +955,7 @@ private fun ArchiveWalletDialog(
                 enabled = !operationInProgress,
                 modifier = Modifier.testTag("confirmArchiveWallet"),
             ) {
-                Text("Arsipkan")
+                Text("Arsipkan", color = ExpenseRed)
             }
         },
         dismissButton = {
@@ -784,4 +965,3 @@ private fun ArchiveWalletDialog(
         },
     )
 }
-

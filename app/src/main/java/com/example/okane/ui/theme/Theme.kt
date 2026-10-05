@@ -1,15 +1,14 @@
 package com.example.okane.ui.theme
 
-import android.app.Activity
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.SideEffect
-import androidx.compose.ui.platform.LocalView
-import androidx.core.view.WindowCompat
+import androidx.compose.ui.unit.dp
 
 private val LightColorScheme = lightColorScheme(
-    primary = SkyBlue,
+    primary = LightPrimary,
     onPrimary = LightOnPrimary,
     primaryContainer = LightPrimaryContainer,
     onPrimaryContainer = LightOnPrimaryContainer,
@@ -27,29 +26,42 @@ private val LightColorScheme = lightColorScheme(
     onSurface = LightOnSurface,
     surfaceVariant = LightSurfaceVariant,
     onSurfaceVariant = LightOnSurfaceVariant,
+    surfaceTint = LightPrimary,
+    surfaceContainerLowest = LightSurfaceContainerLowest,
     surfaceContainerLow = LightSurfaceContainerLow,
     surfaceContainer = LightSurfaceContainer,
     surfaceContainerHigh = LightSurfaceContainerHigh,
+    surfaceContainerHighest = LightSurfaceContainerHighest,
     outline = LightOutline,
+    outlineVariant = LightOutlineVariant,
     error = LightError,
     onError = LightOnError,
     errorContainer = LightErrorContainer,
     onErrorContainer = LightOnErrorContainer,
 )
 
+/** Generous, consistent rounding: the calm look is mostly soft corners. */
+private val OkaneShapes = Shapes(
+    extraSmall = RoundedCornerShape(10.dp),
+    small = RoundedCornerShape(14.dp),
+    medium = RoundedCornerShape(20.dp),
+    large = RoundedCornerShape(24.dp),
+    extraLarge = RoundedCornerShape(32.dp),
+)
+
+/**
+ * Light only, and dynamic colour is deliberately off: the calm palette must not
+ * be replaced by wallpaper colours. System bar icon colours are set once in
+ * MainActivity through enableEdgeToEdge, so this stays pure Compose.
+ */
 @Composable
 fun OkaneTheme(
     content: @Composable () -> Unit
 ) {
-    // Dynamic color is deliberately disabled: the illustration-led Okane
-    // palette must not be replaced by wallpaper colors.
-    val view = LocalView.current
-    if (!view.isInEditMode) {
-        SideEffect {
-            val window = (view.context as Activity).window
-            WindowCompat.getInsetsController(window, view)
-                .isAppearanceLightStatusBars = true
-        }
-    }
-    MaterialTheme(colorScheme = LightColorScheme, typography = Typography, content = content)
+    MaterialTheme(
+        colorScheme = LightColorScheme,
+        typography = Typography,
+        shapes = OkaneShapes,
+        content = content,
+    )
 }

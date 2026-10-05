@@ -3,6 +3,7 @@
     <!-- The attribute only exists on API 29+. Compose itself remains locked to
          the light palette on API 26-28 as well. -->
     <style name="Theme.Okane" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/paper</item>
         <item name="android:forceDarkAllowed">false</item>
     </style>
 </resources>

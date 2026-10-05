@@ -1,29 +1,34 @@
 package com.example.okane.ui
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material3.CenterAlignedTopAppBar
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -32,33 +37,40 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.example.okane.domain.Greeting
-import com.example.okane.ui.components.GlassSurface
-import com.example.okane.ui.components.GlassVariant
+import com.example.okane.ui.components.CalmFab
+import com.example.okane.ui.components.CalmTokens
 import com.example.okane.ui.dashboard.DashboardScreen
-import com.example.okane.ui.transactions.TransactionListScreen
+import com.example.okane.ui.dashboard.HomeActions
+import com.example.okane.ui.dashboard.HomeUiState
+import com.example.okane.ui.icons.OkaneIcons
+import com.example.okane.ui.theme.OkaneMotion
 import com.example.okane.ui.transactions.HistoryActions
 import com.example.okane.ui.transactions.HistoryUiState
+import com.example.okane.ui.transactions.TransactionListScreen
 import com.example.okane.ui.wallets.WalletActions
-import com.example.okane.ui.wallets.WalletMaterialIcon
 import com.example.okane.ui.wallets.WalletsScreen
 import com.example.okane.ui.wallets.WalletsUiState
+import kotlin.math.roundToInt
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 /**
- * Root layout: a horizontal pager under a stationary glass bottom bar.
+ * Root layout: a horizontal pager under a floating navigation bar.
  *
  * Deliberately not using Navigation Compose: three top-level destinations with
  * no back stack share one [PagerState] as their navigation state.
  */
 private enum class OkaneTab(val label: String, val icon: ImageVector) {
-    DASHBOARD("Home", Icons.Filled.Home),
-    TRANSACTIONS("Riwayat", Icons.AutoMirrored.Filled.List),
-    WALLETS("Dompetku", WalletMaterialIcon)
+    DASHBOARD("Home", OkaneIcons.Home),
+    TRANSACTIONS("Riwayat", OkaneIcons.History),
+    WALLETS("Dompetku", OkaneIcons.Wallet)
 }
 
 /**
@@ -70,7 +82,6 @@ fun rememberOkaneRootPagerState(): PagerState = rememberPagerState(
     pageCount = { OkaneTab.entries.size }
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OkaneMainScreen(
     pagerState: PagerState = rememberOkaneRootPagerState(),
@@ -78,23 +89,43 @@ fun OkaneMainScreen(
     historyActions: HistoryActions,
     walletsUiState: WalletsUiState,
     walletActions: WalletActions,
-    onAddTransaction: () -> Unit
+    onAddTransaction: () -> Unit,
+    onAddTransfer: () -> Unit = onAddTransaction,
+    homeUiState: HomeUiState = HomeUiState(),
 ) {
-    val currentTab = OkaneTab.entries[pagerState.currentPage]
     val coroutineScope = rememberCoroutineScope()
     var navigationJob by remember { mutableStateOf<Job?>(null) }
+    val navigationEnabled = !historyUiState.hasOpenModal &&
+        !walletsUiState.hasOpenSecondarySurface
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    fun goTo(tab: OkaneTab) {
+        // A settled active item is already at its target. During a swipe or
+        // fling, tapping any item (including the selected one) settles there.
+        if (tab.ordinal != pagerState.currentPage || pagerState.isScrollInProgress) {
+            navigationJob?.cancel()
+            navigationJob = coroutineScope.launch {
+                pagerState.animateScrollToPage(
+                    page = tab.ordinal,
+                    animationSpec = OkaneMotion.standard(OkaneMotion.LONG),
+                )
+            }
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
         HorizontalPager(
             state = pagerState,
-            userScrollEnabled = !historyUiState.hasOpenModal &&
-                !walletsUiState.hasOpenSecondarySurface,
+            userScrollEnabled = navigationEnabled,
             modifier = Modifier
                 .fillMaxSize()
                 .testTag("rootPager"),
             // There are only three lightweight, ViewModel-free page trees.
             // Keeping all of them composed preserves scroll and transient UI
-            // state without creating resources on every page change.
+            // state, and makes swiping between them jank-free.
             beyondViewportPageCount = OkaneTab.entries.lastIndex,
             key = { page -> OkaneTab.entries[page].name },
         ) { page ->
@@ -108,12 +139,21 @@ fun OkaneMainScreen(
                     OkaneTab.DASHBOARD -> DashboardScreen(
                         greeting = Greeting.now(),
                         totalMoney = walletsUiState.totalMoney,
-                        onAddTransaction = onAddTransaction,
+                        activeWalletCount = walletsUiState.activeWallets.size,
+                        state = homeUiState,
+                        actions = HomeActions(
+                            onAddTransaction = onAddTransaction,
+                            onAddTransfer = onAddTransfer,
+                            onOpenHistory = { goTo(OkaneTab.TRANSACTIONS) },
+                            onOpenWallets = { goTo(OkaneTab.WALLETS) },
+                            onOpenSettings = walletActions.onOpenSettings,
+                        ),
                         modifier = Modifier.fillMaxSize()
                     )
 
                     OkaneTab.TRANSACTIONS -> RootPageScaffold(
-                        tab = tab,
+                        title = tab.label,
+                        subtitle = "Semua catatan keuanganmu",
                         onAddTransaction = onAddTransaction,
                     ) { contentModifier ->
                         TransactionListScreen(
@@ -133,48 +173,70 @@ fun OkaneMainScreen(
             }
         }
 
-        GlassSurface(
-            variant = GlassVariant.Navigation,
+        CalmNavigationBar(
+            pagerState = pagerState,
+            enabled = navigationEnabled,
+            onSelect = ::goTo,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .fillMaxWidth()
                 .navigationBarsPadding()
                 .padding(horizontal = 16.dp, vertical = 10.dp),
+        )
+    }
+}
+
+/**
+ * A floating white bar with a soft pill behind the current destination.
+ *
+ * The pill tracks the pager's live scroll position (page + offset fraction)
+ * rather than animating after the swipe settles, so it glides under the finger
+ * in lockstep with the content. Its offset is read in the layout phase only,
+ * so swiping never recomposes the bar.
+ */
+@Composable
+private fun CalmNavigationBar(
+    pagerState: PagerState,
+    enabled: Boolean,
+    onSelect: (OkaneTab) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(26.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(CalmTokens.hairline, MaterialTheme.colorScheme.outlineVariant),
+        shadowElevation = 8.dp,
+    ) {
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(68.dp)
+                .padding(6.dp),
         ) {
-            NavigationBar(
-                containerColor = androidx.compose.ui.graphics.Color.Transparent,
-                tonalElevation = 0.dp,
-                windowInsets = WindowInsets(0),
-            ) {
+            val itemWidth = maxWidth / OkaneTab.entries.size
+            val indicatorColor = MaterialTheme.colorScheme.primaryContainer
+            Box(
+                modifier = Modifier
+                    .offset {
+                        val position = pagerState.currentPage + pagerState.currentPageOffsetFraction
+                        IntOffset((itemWidth.toPx() * position).roundToInt(), 0)
+                    }
+                    .width(itemWidth)
+                    .fillMaxHeight()
+                    .padding(horizontal = 8.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(indicatorColor)
+            )
+            Row(modifier = Modifier.fillMaxSize()) {
                 OkaneTab.entries.forEach { tab ->
-                    val page = tab.ordinal
-                    NavigationBarItem(
-                        selected = currentTab == tab,
-                        enabled = !historyUiState.hasOpenModal &&
-                            !walletsUiState.hasOpenSecondarySurface,
-                        onClick = {
-                            // A settled active item is already at its target.
-                            // During a swipe/fling, tapping any item (including
-                            // the selected one) explicitly settles there.
-                            if (page != pagerState.currentPage || pagerState.isScrollInProgress) {
-                                navigationJob?.cancel()
-                                navigationJob = coroutineScope.launch {
-                                    pagerState.animateScrollToPage(page)
-                                }
-                            }
-                        },
-                        modifier = Modifier.testTag("rootNavigation-${tab.name}"),
-                        icon = { Icon(tab.icon, contentDescription = null) },
-                        label = { Text(tab.label) },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = MaterialTheme.colorScheme.primary,
-                            selectedTextColor = MaterialTheme.colorScheme.primary,
-                            indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(
-                                alpha = 0.72f
-                            ),
-                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    NavigationItem(
+                        tab = tab,
+                        selected = pagerState.currentPage == tab.ordinal,
+                        enabled = enabled,
+                        onClick = { onSelect(tab) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight(),
                     )
                 }
             }
@@ -182,52 +244,95 @@ fun OkaneMainScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun NavigationItem(
+    tab: OkaneTab,
+    selected: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val tint by animateColorAsState(
+        targetValue = if (selected) {
+            MaterialTheme.colorScheme.primary
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
+        animationSpec = OkaneMotion.standard(OkaneMotion.MEDIUM),
+        label = "navTint",
+    )
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(20.dp))
+            .selectable(
+                selected = selected,
+                enabled = enabled,
+                role = Role.Tab,
+                interactionSource = remember { MutableInteractionSource() },
+                indication = ripple(bounded = true),
+                onClick = onClick,
+            )
+            .testTag("rootNavigation-${tab.name}"),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Icon(tab.icon, contentDescription = null, tint = tint, modifier = Modifier.size(24.dp))
+        Text(
+            tab.label,
+            style = MaterialTheme.typography.labelMedium,
+            color = tint,
+            modifier = Modifier.padding(top = 3.dp),
+        )
+    }
+}
+
+/** Title + subtitle header and the add button, for root pages without their own chrome. */
 @Composable
 private fun RootPageScaffold(
-    tab: OkaneTab,
+    title: String,
+    subtitle: String,
     onAddTransaction: () -> Unit,
     content: @Composable (Modifier) -> Unit,
 ) {
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        containerColor = MaterialTheme.colorScheme.background,
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = {
-                    Text(
-                        tab.label,
-                        style = MaterialTheme.typography.titleLarge
-                    )
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground
-                )
-            )
-        },
-        // Manual entry remains reachable from Riwayat as well as Home.
-        floatingActionButton = {
-            Box(
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Column(
                 modifier = Modifier
-                    .navigationBarsPadding()
-                    .padding(bottom = 92.dp)
+                    .statusBarsPadding()
+                    .padding(
+                        start = CalmTokens.screenPadding,
+                        end = CalmTokens.screenPadding,
+                        top = 16.dp,
+                        bottom = 4.dp,
+                    ),
             ) {
-                FloatingActionButton(
-                    onClick = onAddTransaction,
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
-                ) {
-                    Icon(Icons.Filled.Add, contentDescription = "Catat transaksi")
-                }
+                Text(
+                    title,
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.onBackground,
+                )
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
             }
-        },
-    ) { innerPadding ->
-        content(
-            Modifier
-                .padding(innerPadding)
+            content(Modifier.weight(1f))
+        }
+        // Manual entry remains reachable from Riwayat as well as Home.
+        CalmFab(
+            onClick = onAddTransaction,
+            icon = OkaneIcons.Plus,
+            contentDescription = "Catat transaksi",
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
                 .navigationBarsPadding()
-                .padding(bottom = 92.dp)
+                .padding(end = 20.dp, bottom = 104.dp),
         )
     }
 }
