@@ -115,4 +115,20 @@ class AmountParserTest {
     fun `non numeric garbage is null`() {
         assertNull(AmountParser.parseNumber("12a34"))
     }
+
+    // --- findAllRupiah: every amount, with its position ---
+
+    @Test
+    fun `finds every amount in reading order with positions`() {
+        val text = "Transfer Rp50.000 berhasil. Sisa saldo Rp1.200.000"
+        val all = AmountParser.findAllRupiah(text)
+        assertEquals(listOf(50_000L, 1_200_000L), all.map { it.amount })
+        assertEquals("Rp50.000", text.substring(all[0].range.first, all[0].range.last + 1))
+        assertEquals(text.indexOf("Rp1.200.000"), all[1].range.first)
+    }
+
+    @Test
+    fun `findAll is empty without amounts`() {
+        assertEquals(emptyList<RupiahMatch>(), AmountParser.findAllRupiah("Kode OTP 123456"))
+    }
 }

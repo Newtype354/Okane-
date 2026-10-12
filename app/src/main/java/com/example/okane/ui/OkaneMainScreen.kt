@@ -44,6 +44,9 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.example.okane.domain.Greeting
+import com.example.okane.ui.capture.CaptureInboxActions
+import com.example.okane.ui.capture.CaptureInboxUiState
+import com.example.okane.ui.capture.CaptureReviewSheet
 import com.example.okane.ui.components.CalmFab
 import com.example.okane.ui.components.CalmTokens
 import com.example.okane.ui.dashboard.DashboardScreen
@@ -92,6 +95,8 @@ fun OkaneMainScreen(
     onAddTransaction: () -> Unit,
     onAddTransfer: () -> Unit = onAddTransaction,
     homeUiState: HomeUiState = HomeUiState(),
+    captureInbox: CaptureInboxUiState = CaptureInboxUiState(),
+    captureActions: CaptureInboxActions = CaptureInboxActions.None,
 ) {
     val coroutineScope = rememberCoroutineScope()
     var navigationJob by remember { mutableStateOf<Job?>(null) }
@@ -147,7 +152,9 @@ fun OkaneMainScreen(
                             onOpenHistory = { goTo(OkaneTab.TRANSACTIONS) },
                             onOpenWallets = { goTo(OkaneTab.WALLETS) },
                             onOpenSettings = walletActions.onOpenSettings,
+                            onOpenCaptureInbox = captureActions.onOpen,
                         ),
+                        captureInbox = captureInbox,
                         modifier = Modifier.fillMaxSize()
                     )
 
@@ -182,6 +189,8 @@ fun OkaneMainScreen(
                 .navigationBarsPadding()
                 .padding(horizontal = 16.dp, vertical = 10.dp),
         )
+
+        CaptureReviewSheet(state = captureInbox, actions = captureActions)
     }
 }
 

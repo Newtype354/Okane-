@@ -1,6 +1,7 @@
 package com.example.okane.data.prefs
 
 import android.content.Context
+import com.example.okane.data.capture.SourceToggles
 import com.example.okane.domain.Sources
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -16,12 +17,12 @@ import javax.inject.Singleton
 @Singleton
 class SourcePreferences @Inject constructor(
     @ApplicationContext context: Context
-) {
+) : SourceToggles {
     private val prefs =
         context.getSharedPreferences("okane_source_toggles", Context.MODE_PRIVATE)
 
     // Default true: a source the user never touched is tracked.
-    fun isEnabled(source: String): Boolean = prefs.getBoolean(source, true)
+    override fun isEnabled(source: String): Boolean = prefs.getBoolean(source, true)
 
     fun setEnabled(source: String, enabled: Boolean) {
         prefs.edit().putBoolean(source, enabled).apply()

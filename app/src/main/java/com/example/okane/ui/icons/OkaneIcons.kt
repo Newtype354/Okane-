@@ -150,6 +150,31 @@ object OkaneIcons {
         )
     }
 
+    /** Perlu konfirmasi: a tray waiting to be emptied. */
+    val Inbox: ImageVector by lazy {
+        lineIcon(
+            "Inbox",
+            "M4 13.5 L6.5 6 H17.5 L20 13.5 V18 A1.5 1.5 0 0 1 18.5 19.5 H5.5 A1.5 1.5 0 0 1 4 18 Z",
+            "M4 13.5 H8.5 L9.75 15.5 H14.25 L15.5 13.5 H20",
+        )
+    }
+
+    val Share: ImageVector by lazy {
+        lineIcon(
+            "Share",
+            "M12 4.5 V14.5", "M8.5 8 L12 4.5 L15.5 8",
+            "M6 11.5 V18 A1.5 1.5 0 0 0 7.5 19.5 H16.5 A1.5 1.5 0 0 0 18 18 V11.5",
+        )
+    }
+
+    val Battery: ImageVector by lazy {
+        lineIcon(
+            "Battery",
+            "M6 7.5 H17 A1.5 1.5 0 0 1 18.5 9 V15 A1.5 1.5 0 0 1 17 16.5 H6 A1.5 1.5 0 0 1 4.5 15 V9 A1.5 1.5 0 0 1 6 7.5 Z",
+            "M20.5 10.5 V13.5", "M7.5 10.5 V13.5", "M10.5 10.5 V13.5",
+        )
+    }
+
     private fun lineIcon(name: String, vararg paths: String): ImageVector {
         val builder = ImageVector.Builder(
             name = name,

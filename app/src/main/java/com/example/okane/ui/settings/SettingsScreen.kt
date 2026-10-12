@@ -28,6 +28,10 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.okane.domain.Sources
+import com.example.okane.domain.capture.CaptureHealthState
+import com.example.okane.domain.capture.KnownTemplates
+import com.example.okane.domain.capture.PackageTrust
+import com.example.okane.domain.capture.SourceCatalog
 import com.example.okane.ui.components.CalmCard
 import com.example.okane.ui.components.CalmIconButton
 import com.example.okane.ui.components.CalmPrimaryButton
@@ -36,6 +40,7 @@ import com.example.okane.ui.components.CalmTokens
 import com.example.okane.ui.components.IconBadge
 import com.example.okane.ui.components.SectionHeader
 import com.example.okane.ui.components.StatusChip
+import com.example.okane.ui.format.Formatters
 import com.example.okane.ui.icons.OkaneIcons
 import com.example.okane.ui.theme.IncomeGreen
 import com.example.okane.ui.theme.Lavender
@@ -44,6 +49,8 @@ import com.example.okane.ui.theme.Mint
 import com.example.okane.ui.theme.Mist
 import com.example.okane.ui.theme.MistInk
 import com.example.okane.ui.theme.OkaneTheme
+import com.example.okane.ui.theme.Peach
+import com.example.okane.ui.theme.PeachInk
 import com.example.okane.ui.theme.SageInk
 
 @Composable
@@ -54,9 +61,14 @@ fun SettingsSecondaryScreen(
     capturedSampleCount: Int,
     onOpenListenerSettings: () -> Unit,
     onSourceToggled: (String, Boolean) -> Unit,
-    onDumpSamples: () -> Unit,
+    onShareSamples: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    health: CaptureHealthState = CaptureHealthState(),
+    batteryUnrestricted: Boolean = true,
+    batteryTip: String? = null,
+    onOpenBatterySettings: () -> Unit = {},
+    now: Long = System.currentTimeMillis(),
 ) {
     BackHandler(onBack = onBack)
     Column(
@@ -89,8 +101,13 @@ fun SettingsSecondaryScreen(
             capturedSampleCount = capturedSampleCount,
             onOpenListenerSettings = onOpenListenerSettings,
             onSourceToggled = onSourceToggled,
-            onDumpSamples = onDumpSamples,
+            onShareSamples = onShareSamples,
             modifier = Modifier.weight(1f),
+            health = health,
+            batteryUnrestricted = batteryUnrestricted,
+            batteryTip = batteryTip,
+            onOpenBatterySettings = onOpenBatterySettings,
+            now = now,
         )
     }
 }
@@ -103,8 +120,13 @@ fun SettingsScreen(
     capturedSampleCount: Int,
     onOpenListenerSettings: () -> Unit,
     onSourceToggled: (String, Boolean) -> Unit,
-    onDumpSamples: () -> Unit,
-    modifier: Modifier = Modifier
+    onShareSamples: () -> Unit,
+    modifier: Modifier = Modifier,
+    health: CaptureHealthState = CaptureHealthState(),
+    batteryUnrestricted: Boolean = true,
+    batteryTip: String? = null,
+    onOpenBatterySettings: () -> Unit = {},
+    now: Long = System.currentTimeMillis(),
 ) {
     Column(
         modifier = modifier
@@ -133,6 +155,16 @@ fun SettingsScreen(
                 subtitle = "Untuk pemberitahuan dari Okane sendiri",
                 granted = postNotificationsGranted,
             )
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant,
+                modifier = Modifier.padding(vertical = 14.dp),
+            )
+            PermissionRow(
+                icon = OkaneIcons.Battery,
+                title = "Tanpa batasan baterai",
+                subtitle = "Agar Okane tidak dimatikan diam-diam oleh sistem",
+                granted = batteryUnrestricted,
+            )
 
             if (!listenerAccessGranted) {
                 Text(
@@ -151,13 +183,41 @@ fun SettingsScreen(
                     .fillMaxWidth()
                     .padding(top = 16.dp)
             )
+            if (!batteryUnrestricted) {
+                CalmSecondaryButton(
+                    text = "Buka pengaturan baterai",
+                    onClick = onOpenBatterySettings,
+                    icon = OkaneIcons.Battery,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 10.dp)
+                        .testTag("settingsBattery")
+                )
+            }
+            batteryTip?.let {
+                Text(
+                    it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 12.dp)
+                )
+            }
         }
+
+        // --- Health ---
+        SectionHeader("Kesehatan pencatatan otomatis", modifier = Modifier.padding(start = 4.dp, top = 8.dp))
+        HealthCard(
+            health = health,
+            listenerAccessGranted = listenerAccessGranted,
+            now = now,
+        )
 
         // --- Per-app toggles ---
         SectionHeader("Sumber yang dicatat", modifier = Modifier.padding(start = 4.dp, top = 8.dp))
         CalmCard(modifier = Modifier.fillMaxWidth(), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 18.dp, vertical = 8.dp)) {
             Text(
-                "Matikan sumber untuk berhenti mencatat transaksinya.",
+                "Format yang sudah dikenal dicatat otomatis. Selebihnya masuk ke " +
+                    "\"Perlu konfirmasi\" di Home. Matikan sumber untuk berhenti membacanya.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
@@ -169,11 +229,14 @@ fun SettingsScreen(
                         .padding(vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        source,
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.weight(1f)
-                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(source, style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            sourceStatus(source, health.lastSeenBySource[source], now),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                     Switch(
                         // Missing key -> true, matching SourcePreferences'
                         // "tracked unless turned off" default.
@@ -199,8 +262,8 @@ fun SettingsScreen(
             }
         }
 
-        // --- Discovery (temporary section, removed after parser setup) ---
-        SectionHeader("Pengumpulan sampel · tahap persiapan", modifier = Modifier.padding(start = 4.dp, top = 8.dp))
+        // --- Samples: what new formats are learned from ---
+        SectionHeader("Contoh notifikasi", modifier = Modifier.padding(start = 4.dp, top = 8.dp))
         CalmCard(
             modifier = Modifier.fillMaxWidth(),
             color = Lavender,
@@ -208,30 +271,103 @@ fun SettingsScreen(
             contentPadding = androidx.compose.foundation.layout.PaddingValues(18.dp),
         ) {
             Text(
-                "$capturedSampleCount notifikasi bernuansa keuangan tersimpan",
+                "$capturedSampleCount notifikasi keuangan tersimpan",
                 style = MaterialTheme.typography.titleSmall,
                 color = LavenderInk,
             )
             Text(
-                "Okane mengumpulkan contoh notifikasi asli untuk membangun parser. " +
-                    "Hanya disimpan di HP ini. Tekan tombol di bawah lalu salin dari " +
-                    "Logcat (tag \"OkaneSamples\").",
+                "Hanya dari aplikasi keuangan yang didukung, tanpa kode OTP, dan hanya " +
+                    "di HP ini. Bagikan untuk dibuatkan format baru; nomor rekening dan " +
+                    "nama penerima disensor. Periksa dulu sebelum mengirim.",
                 style = MaterialTheme.typography.bodySmall,
                 color = LavenderInk.copy(alpha = 0.85f),
                 modifier = Modifier.padding(top = 6.dp)
             )
             CalmSecondaryButton(
-                text = "Cetak sampel ke Logcat",
-                onClick = onDumpSamples,
+                text = "Bagikan sampel",
+                onClick = onShareSamples,
+                icon = OkaneIcons.Share,
                 bordered = false,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 14.dp)
+                    .testTag("settingsShareSamples")
             )
         }
         Box(Modifier.padding(bottom = 24.dp))
     }
 }
+
+@Composable
+private fun HealthCard(
+    health: CaptureHealthState,
+    listenerAccessGranted: Boolean,
+    now: Long,
+) {
+    val last = health.lastNotificationAt
+    val quiet = last == null || now - last > QUIET_AFTER_MILLIS
+    CalmCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("settingsHealth"),
+        color = if (listenerAccessGranted && !quiet) Mint else Peach,
+        border = false,
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(18.dp),
+    ) {
+        val ink = if (listenerAccessGranted && !quiet) SageInk else PeachInk
+        Text(
+            when {
+                !listenerAccessGranted -> "Belum bisa membaca notifikasi"
+                last == null -> "Menunggu notifikasi pertama"
+                quiet -> "Sudah lama tidak ada notifikasi"
+                else -> "Berjalan normal"
+            },
+            style = MaterialTheme.typography.titleSmall,
+            color = ink,
+        )
+        HealthLine("Notifikasi keuangan terakhir", last?.let { Formatters.relative(it, now) }, ink)
+        HealthLine("Terakhir dicatat otomatis", health.lastRecordedAt?.let { Formatters.relative(it, now) }, ink)
+        HealthLine("Layanan tersambung", health.listenerConnectedAt?.let { Formatters.relative(it, now) }, ink)
+        if (listenerAccessGranted && quiet) {
+            Text(
+                "Jika kamu bertransaksi tapi tidak ada yang masuk, kemungkinan Okane " +
+                    "dihentikan oleh penghemat baterai. Lihat pengaturan baterai di atas.",
+                style = MaterialTheme.typography.bodySmall,
+                color = ink.copy(alpha = 0.85f),
+                modifier = Modifier.padding(top = 8.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun HealthLine(label: String, value: String?, ink: androidx.compose.ui.graphics.Color) {
+    Row(modifier = Modifier.padding(top = 6.dp)) {
+        Text(
+            label,
+            style = MaterialTheme.typography.bodySmall,
+            color = ink.copy(alpha = 0.8f),
+            modifier = Modifier.weight(1f),
+        )
+        Text(value ?: "belum ada", style = MaterialTheme.typography.bodySmall, color = ink)
+    }
+}
+
+/** "Otomatis untuk top up · terlihat 5 menit lalu" and the like. */
+internal fun sourceStatus(source: String, lastSeen: Long?, now: Long): String {
+    val mode = if (KnownTemplates.ALL.any { it.source == source } &&
+        SourceCatalog.byName(source)?.packages?.values?.any { it == PackageTrust.CONFIRMED_ON_DEVICE } == true
+    ) {
+        "Sebagian otomatis"
+    } else {
+        "Lewat konfirmasi"
+    }
+    val seen = lastSeen?.let { "terlihat " + Formatters.relative(it, now) } ?: "belum terlihat di HP ini"
+    return "$mode · $seen"
+}
+
+/** Three days without a single finance notification usually means the listener died. */
+private const val QUIET_AFTER_MILLIS = 3L * 24 * 60 * 60 * 1000
 
 @Composable
 private fun PermissionRow(
@@ -277,7 +413,7 @@ fun SettingsScreenPreview() {
             capturedSampleCount = 7,
             onOpenListenerSettings = {},
             onSourceToggled = { _, _ -> },
-            onDumpSamples = {}
+            onShareSamples = {}
         )
     }
 }

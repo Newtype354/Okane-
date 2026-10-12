@@ -150,21 +150,4 @@ class WalletRepository @Inject constructor(
 
         return create(DefaultWallets.FALLBACK_NAME, makeDefault = true)
     }
-
-    /**
-     * Routes a notification into the wallet it actually came from, so a GoPay
-     * notification lands in the GoPay wallet when the user created one during
-     * onboarding. Falls back to the default wallet.
-     *
-     * Name matching is a judgement call, not in the brief: the alternative is
-     * dumping every captured transaction into one wallet and making per-wallet
-     * balances wrong for anyone using e-wallets, which is most of the target
-     * users.
-     */
-    suspend fun resolveForNotification(appName: String?): Long {
-        if (!appName.isNullOrBlank()) {
-            dao.findActiveByName(appName)?.let { return it.id }
-        }
-        return ensureDefaultWallet()
-    }
 }

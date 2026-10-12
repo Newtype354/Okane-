@@ -68,15 +68,33 @@ object Formatters {
             .format(dateTimeFormat)
 
     /** Epoch millis -> local 24-hour time, e.g. "14.30". */
-    fun time(epochMillis: Long): String =
+    fun time(epochMillis: Long, zone: ZoneId = ZoneId.systemDefault()): String =
         Instant.ofEpochMilli(epochMillis)
-            .atZone(ZoneId.systemDefault())
+            .atZone(zone)
             .format(timeFormat)
 
     fun historyDateLabel(date: LocalDate, today: LocalDate): String = when (date) {
         today -> "Hari ini"
         today.minusDays(1) -> "Kemarin"
         else -> date.format(fullDateFormat)
+    }
+
+    /**
+     * How long ago, for status lines: "baru saja", "5 menit lalu",
+     * "3 jam lalu", "kemarin 14.30", then a date.
+     */
+    fun relative(epochMillis: Long, nowMillis: Long, zone: ZoneId = ZoneId.systemDefault()): String {
+        val minutes = (nowMillis - epochMillis) / 60_000L
+        val then = Instant.ofEpochMilli(epochMillis).atZone(zone)
+        val today = Instant.ofEpochMilli(nowMillis).atZone(zone).toLocalDate()
+        return when {
+            minutes < 1 -> "baru saja"
+            minutes < 60 -> "$minutes menit lalu"
+            minutes < 12 * 60 && then.toLocalDate() == today -> "${minutes / 60} jam lalu"
+            then.toLocalDate() == today -> "hari ini " + then.format(timeFormat)
+            then.toLocalDate() == today.minusDays(1) -> "kemarin " + then.format(timeFormat)
+            else -> then.format(dateFormat)
+        }
     }
 
     fun netRupiah(amount: Long): String = when {

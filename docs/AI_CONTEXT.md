@@ -6,6 +6,10 @@
 > dokumen ini pada awal percakapan AI chat. Di akhir diskusi, minta AI chat
 > menghasilkan satu prompt implementasi yang siap ditempel ke Codex CLI.
 > Repository yang dibaca Codex tetap menjadi kebenaran terakhir.
+>
+> Untuk diskusi pencatatan otomatis dari notifikasi, lampirkan juga
+> `docs/riset-pencatatan-otomatis.md` (riset, status tiap aplikasi, desain
+> Fase A, cara menambah template dari sampel, dan peta jalan).
 
 ## 1. Ringkasan singkat
 
@@ -35,7 +39,7 @@ bank.
 - Plus Jakarta Sans 400/500/600/700 sebagai local bundled font family
 - MVVM
 - Kotlin Coroutines dan `Flow`/`StateFlow`
-- Room 2.8.4, database schema versi 4
+- Room 2.8.4, database schema versi 5
 - Hilt 2.59.2 untuk dependency injection
 - KSP untuk Room dan Hilt code generation
 - SharedPreferences wrapper untuk onboarding dan toggle sumber notifikasi
@@ -105,7 +109,8 @@ setelah pencatatan manual.
 
 Category bersifat opsional saat input supaya pencatatan tetap cepat. Query
 `uncategorised` dan aksi assign-category masih tersedia di data/ViewModel,
-tetapi landing page Home yang minimal tidak merender inbox. Saat menambahkan
+tetapi landing page Home yang minimal tidak merender inbox kategori (kartu
+"Perlu konfirmasi" di Home adalah hal lain: saran dari notifikasi). Saat menambahkan
 recovery UI di masa depan, tempatkan di surface lain atau ubah scope Home secara
 eksplisit; jangan membuat category wajib hanya untuk menutupi tidak adanya UI.
 
@@ -164,7 +169,11 @@ langsung; belum ada UI-model mapping layer terpisah.
 - `domain/model/`: `TransactionType`, `TransactionSource`, `DashboardSummary`.
 - `domain/Greeting.kt`: greeting berdasarkan jam.
 - `domain/SummaryCalculator.kt`: ringkasan keuangan.
-- `domain/parser/`: routing notifikasi dan parser per aplikasi.
+- `domain/capture/`: aturan pencatatan otomatis yang pure Kotlin — katalog
+  sumber dan package (`SourceCatalog`), template berbasis data
+  (`CaptureTemplate`/`KnownTemplates`), heuristik kata kunci, `CaptureEngine`,
+  serta pencocokan duplikat dan transfer (`CaptureMatching`).
+- `domain/parser/AmountParser.kt`: membaca nominal rupiah dari teks.
 - `domain/Sources.kt`: nama sumber keuangan yang dikenal produk.
 
 Layering tidak sepenuhnya murni: `SummaryCalculator` membaca
@@ -174,10 +183,13 @@ Layering tidak sepenuhnya murni: `SummaryCalculator` membaca
 ### Data
 
 - `data/local/`: Room entities, DAO, database, migration.
-- `data/repository/`: satu-satunya layer yang seharusnya mengakses DAO.
+- `data/repository/`: satu-satunya layer yang seharusnya mengakses DAO dari UI.
+- `data/capture/`: `CaptureProcessor` (aturan tulis jalur notifikasi, satu
+  mutex), `CaptureStore`/`RoomCaptureStore`, dan `CaptureRepository` untuk UI.
 - `data/prefs/`: wrapper preferensi onboarding dan source toggle.
 - `di/DatabaseModule.kt`: membangun Room serta memasang seluruh migration.
-- `di/ParserModule.kt`: menyediakan `NotificationParser`.
+- `di/CaptureModule.kt`: menyediakan satu `CaptureProcessor` untuk service dan
+  ViewModel.
 
 ## 5. Alur layar
 
@@ -217,6 +229,9 @@ Home (`ui/dashboard/`) bisa di-scroll vertikal dan berisi, dari atas:
 - `TotalMoneyCard`: label **“Total uangmu”** dan total seluruh saldo wallet dari
   flow saldo yang sama dengan Dompetku (initialBalance + semua transaksi,
   wallet aktif dan archived, transfer netral), dengan ilustrasi batu tumpuk.
+- Kartu peach **“N transaksi perlu konfirmasi”** (tag `homeCaptureInbox`),
+  hanya muncul jika ada saran dari notifikasi. Kartu membuka lembar review
+  satu per satu (`ui/capture/`).
 - “Catat cepat”: empat tile pastel — Catat (buka keypad mode Masuk/Keluar,
   tag `homeAddTransaction`), Pindah (keypad mode transfer), Riwayat, Dompet.
 - “Kebiasaanmu”: kartu catatan beruntun (streak) dengan cincin progres menuju
@@ -267,7 +282,7 @@ Splash Android 12+ dan ikon launcher memakai batu tumpuk sage yang sama
 
 ## 7. Model database
 
-Room database berada pada versi 4 dan mempunyai empat entity.
+Room database berada pada versi 5 dan mempunyai lima entity.
 
 ### `transactions`
 
@@ -305,8 +320,18 @@ ada pada kedua tipe, misalnya “Lainnya”.
 
 ### `raw_notifications`
 
-Menyimpan sampel notifikasi lokal selama discovery parser. Data ini tidak dapat
+Menyimpan sampel notifikasi lokal untuk menulis template baru, hanya dari
+sumber keuangan yang dikenal dan tanpa OTP. Data ini tidak dapat
 direkonstruksi, sehingga destructive migration fallback sengaja dimatikan.
+
+### `capture_suggestions` (v5)
+
+Kotak "Perlu konfirmasi": notifikasi yang tampak seperti transaksi tetapi tidak
+boleh dicatat sendiri. Kolomnya mencakup teks asli, `amount`, `direction`,
+usulan `type`/`walletId`/`toWalletId`, `postedAt`, `status`
+(`PENDING`/`ACCEPTED`/`DISMISSED`), `transactionId`, dan `duplicateOfId`. Saran
+tidak dihapus setelah diselesaikan karena teksnya menjadi sampel template.
+Rincian ada di `docs/riset-pencatatan-otomatis.md` bagian 5.5.
 
 ## 8. Dua jalur penulisan transaksi
 
@@ -332,29 +357,42 @@ KeypadScreen
 ```text
 Android notification
  → OkaneNotificationListenerService
- → discovery raw capture jika terlihat finansial
- → NotificationParser memilih parser berdasarkan package
- → SourcePreferences memeriksa toggle
- → TransactionRepository.add
- → wallet bernama sama dengan source, fallback ke default
- → insertIgnoringDuplicates
+ → SourceCatalog.identify: bukan sumber keuangan → dibuang tanpa dibaca
+ → CaptureProcessor (mutex): toggle sumber → CaptureEngine.evaluate
+      ├─ OTP/promo/gagal/tertunda/tanpa nominal → abaikan
+      ├─ template terkonfirmasi + package terkonfirmasi → catat
+      └─ selebihnya → capture_suggestions ("Perlu konfirmasi" di Home)
+ → dedupe: notifikasi sama ±10 menit dibuang; uang yang mungkin sudah
+   tercatat (termasuk catatan manual) ±30 menit → saran + peringatan
+ → top up antar dompet sendiri → satu TRANSFER; sisi lain digabung,
+   selisih ≤ Rp6.500 dicatat sebagai "Biaya admin"
+ → sampel discovery (kecuali OTP) ke raw_notifications
 ```
 
 Listener mengabaikan notifikasi Okane sendiri dan group summary. `bigText`
-diprioritaskan atas text yang mungkin terpotong.
+diprioritaskan atas text yang mungkin terpotong. Saat listener tersambung
+ulang, notifikasi yang masih ada di panel diproses ulang (repeat dibuang).
 
-Discovery mode saat ini masih aktif (`LOG_ALL_PACKAGES = true`). Parser yang
-telah dikonfirmasi dan diregistrasikan baru **GoPay** untuk package
-`com.gojek.gopay`. ShopeePay, Livin, Jenius, wondr, dan Bale belum boleh dianggap
-sudah didukung sampai ada sampel nyata dan parser yang teruji.
+Prinsip utamanya: **hanya template dari sampel asli, pada package yang
+terkonfirmasi di HP pemilik, yang boleh mencatat sendiri.** Saat ini hanya top
+up GoPay (`com.gojek.gopay`). ShopeePay, Livin', balé by BTN, Jenius, dan
+wondr masih **lewat konfirmasi**, begitu juga SMS/WhatsApp/email dari bank.
+Jangan menganggap aplikasi itu sudah didukung otomatis sebelum template-nya
+ditulis dari sampel nyata dan diuji.
+
+Dompet tujuan dicocokkan lewat nama atau alias sumber ("Mandiri" untuk Livin,
+"BTN" untuk Bale), dengan fallback ke dompet default. Settings menampilkan
+kesehatan listener (`CaptureHealth`), status per sumber, pengecualian baterai
+dengan tips per merek HP, dan **Bagikan sampel** (teks tersensor lewat share
+sheet).
 
 ## 9. Onboarding
 
 Onboarding berjalan sekali dan mempunyai tiga slide. State disimpan di
 `OnboardingViewModel`; tidak ada data yang ditulis sebelum `finish()`.
 
-- Wallet suggestion: Tunai, BCA, Mandiri, BRI, BNI, GoPay, OVO, DANA,
-  ShopeePay.
+- Wallet suggestion: Tunai, BCA, Mandiri, BRI, BNI, BTN, Jenius, GoPay, OVO,
+  DANA, ShopeePay.
 - Wallet awalnya tidak terpilih. Jika semua dilewati, fallback `Tunai` dibuat.
 - Category default awalnya terpilih agar skip tetap menghasilkan app yang
   dapat digunakan.
@@ -388,7 +426,10 @@ seolah sudah ada:
 - recurring monthly-fee scheduler;
 - management UI lengkap untuk rename/archive/reorder wallet dan category;
 - production home-screen widget;
-- parser selain GoPay.
+- pencatatan otomatis selain top up GoPay (format lain masuk "Perlu
+  konfirmasi" sampai template-nya ditulis dari sampel asli);
+- template yang dipelajari dari konfirmasi pengguna, OCR bukti transfer, dan
+  impor e-statement (Fase B–D di `docs/riset-pencatatan-otomatis.md`).
 
 Repository sudah mempunyai sebagian operasi wallet/category management, tetapi
 belum semuanya dapat dijangkau dari UI. Widget Glance yang terdaftar adalah
@@ -408,12 +449,16 @@ python tools/verify_sql.py
 ```
 
 Test JVM mencakup keypad, formatter, greeting, summary calculator, rupiah
-amount parser, GoPay parser, notification routing, dan onboarding state.
+amount parser, onboarding state, dan seluruh pipeline capture: katalog sumber,
+template GoPay (sampel asli), heuristik (teks sintetis), engine,
+`CaptureProcessor` dengan store palsu (dedupe, transfer, biaya admin), ekspor
+sampel, dan presenter inbox.
 
 `OkaneDatabaseMigrationTest` memeriksa migration dengan Android test.
 `tools/verify_sql.py` mengekstrak SQL migration dan balance query dari source,
-menjalankan chain v2 → v3 → v4 pada SQLite, lalu membandingkannya dengan schema
-export Room di `app/schemas/`.
+menjalankan chain v2 → v3 → v4 → v5 pada SQLite, membandingkannya dengan schema
+export Room di `app/schemas/`, lalu menjalankan setiap `@Query` DAO pada schema
+terakhir.
 
 Aturan database:
 
@@ -423,9 +468,12 @@ Aturan database:
 - jangan menambahkan destructive fallback;
 - jalankan `verify_sql.py` setelah mengubah entity, DAO query, atau migration.
 
-Status verifikasi terakhir setelah rework home: `compileDebugKotlin`,
-`testDebugUnitTest`, dan `lintDebug` berhasil. Ini adalah snapshot status pada
-saat dokumen dibuat, bukan jaminan untuk perubahan berikutnya.
+Status verifikasi terakhir (Fase A pencatatan otomatis): unit test dan UI test
+Compose dijalankan di harness desktop, dan `verify_sql.py` berhasil.
+`assembleDebug`, `lintDebug`, dan `connectedDebugAndroidTest` belum dijalankan
+untuk perubahan ini dan perlu dijalankan di mesin pengembang. Ini adalah
+snapshot status pada saat dokumen dibuat, bukan jaminan untuk perubahan
+berikutnya.
 
 ## 13. File yang paling relevan
 
@@ -438,7 +486,8 @@ saat dokumen dibuat, bukan jaminan untuk perubahan berikutnya.
 | Routing animasi | `ui/navigation/OkaneRoute.kt` |
 | Keypad | `ui/keypad/KeypadScreen.kt`, `KeypadViewModel.kt`, `domain/keypad/KeypadState.kt` |
 | Onboarding | `ui/onboarding/OnboardingScreen.kt`, `OnboardingViewModel.kt` |
-| Notification | `service/OkaneNotificationListenerService.kt`, `domain/parser/` |
+| Notification | `service/OkaneNotificationListenerService.kt`, `domain/capture/`, `data/capture/` |
+| Perlu konfirmasi | `ui/capture/`, `data/local/CaptureSuggestionEntity.kt`, `CaptureDao.kt` |
 | Database | `data/local/OkaneDatabase.kt`, entities, DAO, `Migrations.kt` |
 | Data access | `data/repository/` |
 | Theme | `ui/theme/Color.kt`, `Theme.kt`, `Type.kt` |

@@ -51,7 +51,7 @@ object DefaultWallets {
     const val FALLBACK_NAME = "Tunai"
 
     val SUGGESTIONS: List<String> = listOf(
-        FALLBACK_NAME, "BCA", "Mandiri", "BRI", "BNI",
+        FALLBACK_NAME, "BCA", "Mandiri", "BRI", "BNI", "BTN", "Jenius",
         "GoPay", "OVO", "DANA", "ShopeePay",
     )
 }

@@ -23,6 +23,17 @@ object AmountParser {
         RUPIAH_REGEX.find(text)?.let { parseNumber(it.groupValues[1]) }
 
     /**
+     * Every rupiah amount in [text], in reading order, with where it sits.
+     * Notifications often carry more than one ("Rp50.000 ... sisa saldo
+     * Rp200.000"); the position lets the caller tell them apart by the words
+     * just before each one.
+     */
+    fun findAllRupiah(text: String): List<RupiahMatch> =
+        RUPIAH_REGEX.findAll(text).mapNotNull { match ->
+            parseNumber(match.groupValues[1])?.let { RupiahMatch(it, match.range) }
+        }.toList()
+
+    /**
      * Parses the numeric part ("50.000", "1,234,567.89") into whole rupiah.
      *
      * Separator rules:
@@ -62,3 +73,6 @@ object AmountParser {
         return if (isThousands) s else s.substring(0, last)
     }
 }
+
+/** One amount found in a text: whole rupiah, and the characters it spans. */
+data class RupiahMatch(val amount: Long, val range: IntRange)

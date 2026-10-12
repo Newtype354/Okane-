@@ -33,9 +33,10 @@ python tools/verify_sql.py           # migrations + balance SQL, no device neede
 ```
 
 `tools/verify_sql.py` extracts the **actual** migration and balance SQL out of
-the Kotlin sources, replays the full v2 → v3 → v4 migration chain against
-SQLite, and compares the result to Room's exported schema in `app/schemas/`. Run
-it after changing any entity, DAO query or migration. A mismatch between a
+the Kotlin sources, replays the full v2 → v3 → v4 → v5 migration chain against
+SQLite, compares the result to Room's exported schema in `app/schemas/`, and
+runs every DAO query against the final schema. Run it after changing any
+entity, DAO query or migration. A mismatch between a
 hand-written migration and Room's generated schema otherwise surfaces only as a
 crash on a user's device, after their data is already at risk.
 
@@ -190,14 +191,30 @@ repository level but not yet reachable from any screen.
 
 ## Notification capture
 
-The listener runs alongside manual entry and is unchanged by it. It is still in
-discovery mode: `LOG_ALL_PACKAGES = true`, with financial-looking notifications
-captured into a `raw_notifications` table so per-app parsers can be written from
-real samples rather than guessed. Only GoPay is confirmed so far.
+The listener reads notifications from the supported finance apps — GoPay,
+ShopeePay, Livin' by Mandiri, Bale by BTN, Jenius and wondr — plus SMS,
+WhatsApp and email that come *from* them. Every other app is dropped on arrival,
+unread and unstored. The pipeline lives in `domain/capture/` (pure rules) and
+`data/capture/CaptureProcessor` (storage):
 
-Captured transactions are routed into the wallet whose name matches the source
-app, falling back to the default wallet — so a GoPay notification credits the
-GoPay wallet if one exists.
+- **Known templates record by themselves.** A format written from a real
+  device sample, on a package confirmed on the device, is recorded directly.
+  Today that is GoPay's top-up notification.
+- **Everything else is a suggestion.** Unknown formats, unconfirmed packages
+  and relayed SMS/WhatsApp/email go to *Perlu konfirmasi* on Home, pre-filled
+  by keyword rules; nothing touches the balances until the user taps *Catat*.
+- **No double counting.** The same notification re-posted is dropped; money
+  that may already be recorded (including hand-typed rows) waits for
+  confirmation; a top-up between the user's own wallets becomes one `TRANSFER`,
+  and the other app's notification of it is merged rather than counted again,
+  with any difference up to Rp6.500 recorded as the fee.
+- **Health.** Settings shows when the listener last connected, the last
+  finance notification and per-source last-seen times, plus battery-saver
+  guidance per phone brand.
+
+Samples (OTPs excluded) stay on the phone; *Bagikan sampel* shares them with
+account numbers and recipient names masked, for writing new templates. The
+research and the roadmap are in `docs/riset-pencatatan-otomatis.md`.
 
 Because those discovery samples cannot be recovered once lost, destructive
 migration fallback is **off**. A missing migration crashes loudly in development

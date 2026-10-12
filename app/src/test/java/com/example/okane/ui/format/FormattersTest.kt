@@ -46,4 +46,16 @@ class FormattersTest {
             Formatters.signedRupiah(250_000, TransactionType.TRANSFER)
         )
     }
+
+    @Test
+    fun `relative time reads like a status line`() {
+        val zone = java.time.ZoneId.of("Asia/Jakarta")
+        val now = java.time.LocalDateTime.of(2026, 10, 12, 15, 0).atZone(zone).toInstant().toEpochMilli()
+        val minute = 60_000L
+        assertEquals("baru saja", Formatters.relative(now - 20_000, now, zone))
+        assertEquals("5 menit lalu", Formatters.relative(now - 5 * minute, now, zone))
+        assertEquals("3 jam lalu", Formatters.relative(now - 180 * minute, now, zone))
+        val lastNight = java.time.LocalDateTime.of(2026, 10, 11, 21, 30).atZone(zone).toInstant().toEpochMilli()
+        assertEquals("kemarin 21.30", Formatters.relative(lastNight, now, zone))
+    }
 }

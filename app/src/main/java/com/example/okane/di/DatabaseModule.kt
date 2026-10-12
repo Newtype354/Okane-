@@ -2,6 +2,7 @@ package com.example.okane.di
 
 import android.content.Context
 import androidx.room.Room
+import com.example.okane.data.local.CaptureDao
 import com.example.okane.data.local.CategoryDao
 import com.example.okane.data.local.OKANE_MIGRATIONS
 import com.example.okane.data.local.OkaneDatabase
@@ -58,4 +59,8 @@ object DatabaseModule {
     @Provides
     fun provideRawNotificationDao(database: OkaneDatabase): RawNotificationDao =
         database.rawNotificationDao()
+
+    @Provides
+    fun provideCaptureDao(database: OkaneDatabase): CaptureDao =
+        database.captureDao()
 }

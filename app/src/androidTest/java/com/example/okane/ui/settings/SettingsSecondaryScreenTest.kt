@@ -33,7 +33,7 @@ class SettingsSecondaryScreenTest {
                     capturedSampleCount = 0,
                     onOpenListenerSettings = {},
                     onSourceToggled = { source, enabled -> toggled = source to enabled },
-                    onDumpSamples = {},
+                    onShareSamples = {},
                     onBack = { backPressed = true },
                 )
             }

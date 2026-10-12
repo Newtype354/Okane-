@@ -1,6 +1,5 @@
 package com.example.okane.data.repository
 
-import com.example.okane.data.local.Transaction
 import com.example.okane.data.local.TransactionDao
 import com.example.okane.data.local.TransactionEntity
 import com.example.okane.data.local.TypeTotal
@@ -13,9 +12,9 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Single access point for transaction data. Everything else in the app
- * (notification service, ViewModels) talks to this class, never to the DAO or
- * SQL directly — so storage details can change without touching them.
+ * Single access point for transaction data from the UI. The notification
+ * listener writes through `data/capture/CaptureProcessor` instead, which owns
+ * the duplicate and transfer rules for that path.
  */
 @Singleton
 class TransactionRepository @Inject constructor(
@@ -30,38 +29,6 @@ class TransactionRepository @Inject constructor(
 
     /** Committed without a category; the home screen surfaces these as an inbox. */
     val uncategorised: Flow<List<TransactionEntity>> = dao.observeUncategorised()
-
-    /**
-     * Notification path. Takes the parser's own model and maps it to a row, so
-     * OkaneNotificationListenerService and NotificationParser need no knowledge
-     * of the storage schema and stay unchanged.
-     *
-     * Returns the new row id, or -1 when the unique index rejected it as a
-     * repeat delivery of a notification already stored.
-     */
-    suspend fun add(transaction: Transaction): Long {
-        // Land it in the wallet named after the app when one exists, so a
-        // GoPay notification credits the GoPay wallet rather than the default.
-        val walletId = walletRepository.resolveForNotification(transaction.source)
-        return dao.insertIgnoringDuplicates(
-            TransactionEntity(
-                amount = transaction.amount,
-                type = when (transaction.type) {
-                    Transaction.TYPE_KREDIT -> TransactionType.IN
-                    else -> TransactionType.OUT
-                },
-                walletId = walletId,
-                toWalletId = null,
-                categoryId = null,          // notifications carry no category
-                occurredAt = transaction.timestamp,
-                createdAt = transaction.createdAt,
-                source = TransactionSource.NOTIFICATION,
-                note = transaction.note,
-                sourceApp = transaction.source,   // "GoPay", "Livin", …
-                merchant = transaction.merchant,
-            )
-        )
-    }
 
     /**
      * Keypad path for income and expense. Returns the new row id so the caller

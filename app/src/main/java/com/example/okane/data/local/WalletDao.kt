@@ -25,6 +25,10 @@ interface WalletDao {
     @Query("SELECT * FROM wallets WHERE isArchived = 0 ORDER BY sortOrder, name")
     fun observeActive(): Flow<List<WalletEntity>>
 
+    /** One-shot read of [observeActive], for the notification listener. */
+    @Query("SELECT * FROM wallets WHERE isArchived = 0 ORDER BY sortOrder, name")
+    suspend fun getActive(): List<WalletEntity>
+
     /** Management and historical reference resolution include archived rows. */
     @Query("SELECT * FROM wallets ORDER BY isArchived, sortOrder, name")
     fun observeAll(): Flow<List<WalletEntity>>
@@ -33,10 +37,8 @@ interface WalletDao {
     suspend fun findById(id: Long): WalletEntity?
 
     /**
-     * Used to route a notification into the wallet it actually came from —
-     * a GoPay notification belongs in the GoPay wallet if the user made one.
-     * COLLATE NOCASE because the onboarding list and the parser's source name
-     * are written by different people.
+     * Onboarding's "already have one with this name?" check. COLLATE NOCASE
+     * because people type "gopay" for the wallet the list calls "GoPay".
      */
     @Query("SELECT * FROM wallets WHERE isArchived = 0 AND name = :name COLLATE NOCASE LIMIT 1")
     suspend fun findActiveByName(name: String): WalletEntity?

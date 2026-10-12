@@ -99,15 +99,15 @@ class OnboardingUiStateTest {
 
     @Test
     fun `a custom wallet is added already ticked`() {
-        val state = initial.withCustomWallet("Jenius")
+        val state = initial.withCustomWallet("Blu")
         val added = state.wallets.last()
-        assertEquals("Jenius", added.name)
+        assertEquals("Blu", added.name)
         assertTrue(added.selected)
     }
 
     @Test
     fun `a custom wallet name is trimmed`() {
-        assertEquals("Jenius", initial.withCustomWallet("  Jenius  ").wallets.last().name)
+        assertEquals("Blu", initial.withCustomWallet("  Blu  ").wallets.last().name)
     }
 
     @Test

@@ -230,5 +230,48 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
     }
 }
 
+/**
+ * v4 → v5: the "Perlu konfirmasi" inbox.
+ *
+ * Purely additive: one new table for notifications that look like a
+ * transaction but need the user's confirmation. No existing row changes.
+ */
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `capture_suggestions` (
+                `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                `sourceApp` TEXT NOT NULL,
+                `packageName` TEXT NOT NULL,
+                `channel` TEXT NOT NULL,
+                `title` TEXT,
+                `text` TEXT NOT NULL,
+                `amount` INTEGER NOT NULL,
+                `direction` TEXT,
+                `type` TEXT,
+                `walletId` INTEGER,
+                `toWalletId` INTEGER,
+                `counterparty` TEXT,
+                `postedAt` INTEGER NOT NULL,
+                `createdAt` INTEGER NOT NULL,
+                `status` TEXT NOT NULL,
+                `transactionId` INTEGER,
+                `duplicateOfId` INTEGER,
+                `resolvedAt` INTEGER
+            )
+            """.trimIndent()
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_capture_suggestions_status` " +
+                "ON `capture_suggestions` (`status`)"
+        )
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS `index_capture_suggestions_sourceApp_postedAt` " +
+                "ON `capture_suggestions` (`sourceApp`, `postedAt`)"
+        )
+    }
+}
+
 /** Registered in DatabaseModule; kept together so none is forgotten. */
-val OKANE_MIGRATIONS = arrayOf(MIGRATION_2_3, MIGRATION_3_4)
+val OKANE_MIGRATIONS = arrayOf(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)

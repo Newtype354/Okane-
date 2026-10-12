@@ -154,6 +154,7 @@ class WalletRepositoryTest {
         override suspend fun count(): Int = rows.size
         override suspend fun activeCount(): Int = rows.count { !it.isArchived }
         override fun observeActive(): Flow<List<WalletEntity>> = activeFlow
+        override suspend fun getActive(): List<WalletEntity> = activeRows()
         override fun observeAll(): Flow<List<WalletEntity>> = allFlow
         override suspend fun findById(id: Long): WalletEntity? = rows.firstOrNull { it.id == id }
         override suspend fun findActiveByName(name: String): WalletEntity? = rows.firstOrNull {

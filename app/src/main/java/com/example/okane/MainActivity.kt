@@ -1,11 +1,13 @@
 package com.example.okane
 
 import android.Manifest
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -25,7 +27,9 @@ import androidx.compose.runtime.setValue
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import com.example.okane.domain.capture.BatteryGuide
 import com.example.okane.ui.OkaneMainScreen
+import com.example.okane.ui.capture.CaptureViewModel
 import com.example.okane.ui.rememberOkaneRootPagerState
 import com.example.okane.ui.splash.OkaneSplashScreen
 import com.example.okane.ui.SettingsViewModel
@@ -54,10 +58,12 @@ class MainActivity : ComponentActivity() {
     private val keypadViewModel: KeypadViewModel by viewModels()
     private val onboardingViewModel: OnboardingViewModel by viewModels()
     private val walletsViewModel: WalletsViewModel by viewModels()
+    private val captureViewModel: CaptureViewModel by viewModels()
 
     // mutableStateOf: Compose re-draws automatically whenever these change.
     private var postNotificationsGranted by mutableStateOf(false)
     private var listenerAccessGranted by mutableStateOf(false)
+    private var batteryUnrestricted by mutableStateOf(true)
 
     private val requestPostNotifications =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -86,6 +92,8 @@ class MainActivity : ComponentActivity() {
                 val walletsUiState by walletsViewModel.uiState.collectAsState()
                 val sourceToggles by settingsViewModel.sourceToggles.collectAsState()
                 val capturedCount by settingsViewModel.capturedSampleCount.collectAsState()
+                val captureHealth by settingsViewModel.health.collectAsState()
+                val captureInbox by captureViewModel.uiState.collectAsState()
 
                 // rememberSaveable survives rotation, so the splash only
                 // plays on a fresh launch, not on every configuration change.
@@ -164,8 +172,12 @@ class MainActivity : ComponentActivity() {
                                     startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
                                 },
                                 onSourceToggled = settingsViewModel::setSourceEnabled,
-                                onDumpSamples = settingsViewModel::dumpCapturedSamplesToLog,
+                                onShareSamples = { settingsViewModel.shareSamples(::shareText) },
                                 onBack = { showSettings = false },
+                                health = captureHealth,
+                                batteryUnrestricted = batteryUnrestricted,
+                                batteryTip = BatteryGuide.tipFor(Build.MANUFACTURER),
+                                onOpenBatterySettings = ::openBatterySettings,
                             )
 
                             OkaneRoute.Keypad -> {
@@ -242,6 +254,8 @@ class MainActivity : ComponentActivity() {
                                     onFeedbackShown = walletsViewModel::consumeFeedback,
                                 ),
                                 homeUiState = homeUiState,
+                                captureInbox = captureInbox,
+                                captureActions = captureViewModel.actions,
                                 // Each entry point opens the keypad in the mode
                                 // its label promises; the typed amount is kept.
                                 onAddTransaction = {
@@ -267,6 +281,33 @@ class MainActivity : ComponentActivity() {
         listenerAccessGranted = NotificationManagerCompat
             .getEnabledListenerPackages(this)
             .contains(packageName)
+        batteryUnrestricted = getSystemService(PowerManager::class.java)
+            ?.isIgnoringBatteryOptimizations(packageName) ?: true
+    }
+
+    /**
+     * The system list of battery-optimised apps. Not the direct "allow?"
+     * dialog: that needs REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, which Play
+     * reserves for apps whose core function breaks without it.
+     */
+    private fun openBatterySettings() {
+        try {
+            startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+        } catch (_: ActivityNotFoundException) {
+            startActivity(
+                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                    .setData(android.net.Uri.fromParts("package", packageName, null))
+            )
+        }
+    }
+
+    /** The system share sheet; the user picks where the samples go. */
+    private fun shareText(text: String) {
+        val send = Intent(Intent.ACTION_SEND)
+            .setType("text/plain")
+            .putExtra(Intent.EXTRA_SUBJECT, "Sampel notifikasi Okane")
+            .putExtra(Intent.EXTRA_TEXT, text)
+        startActivity(Intent.createChooser(send, "Bagikan sampel"))
     }
 
     private fun isPostNotificationsGranted(): Boolean =

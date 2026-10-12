@@ -32,6 +32,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.okane.ui.capture.CaptureInboxCard
+import com.example.okane.ui.capture.CaptureInboxUiState
 import com.example.okane.ui.components.AnimatedAmountText
 import com.example.okane.ui.components.CalmCard
 import com.example.okane.ui.components.CalmIconButton
@@ -67,11 +69,13 @@ data class HomeActions(
     val onOpenHistory: () -> Unit,
     val onOpenWallets: () -> Unit,
     val onOpenSettings: () -> Unit,
+    val onOpenCaptureInbox: () -> Unit = {},
 )
 
 /**
  * Home: a calm landing page in the spirit of a mindfulness app. A greeting,
- * the all-wallet total beside a stone cairn, four pastel shortcuts, a gentle
+ * the all-wallet total beside a stone cairn, notifications waiting for
+ * confirmation (only when there are any), four pastel shortcuts, a gentle
  * recording streak, this month at a glance, and one quiet line to end on.
  *
  * It scrolls vertically; root-page swiping stays horizontal in the pager.
@@ -84,6 +88,7 @@ fun DashboardScreen(
     state: HomeUiState,
     actions: HomeActions,
     modifier: Modifier = Modifier,
+    captureInbox: CaptureInboxUiState = CaptureInboxUiState(),
 ) {
     Column(
         modifier = modifier
@@ -111,6 +116,12 @@ fun DashboardScreen(
             modifier = Modifier
                 .padding(top = 24.dp)
                 .calmEntrance(1, "home-hero"),
+        )
+
+        CaptureInboxCard(
+            state = captureInbox,
+            onOpen = actions.onOpenCaptureInbox,
+            modifier = Modifier.calmEntrance(1, "home-capture"),
         )
 
         SectionTitle(

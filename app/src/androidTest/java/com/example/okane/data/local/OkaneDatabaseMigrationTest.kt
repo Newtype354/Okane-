@@ -21,7 +21,7 @@ import org.junit.runner.RunWith
  *   ./gradlew connectedDebugAndroidTest
  *
  * The same SQL is also exercised on the JVM against plain SQLite by
- * `scratchpad/verify_sql.py`, which needs no device.
+ * `tools/verify_sql.py`, which needs no device.
  */
 @RunWith(AndroidJUnit4::class)
 class OkaneDatabaseMigrationTest {
@@ -223,6 +223,39 @@ class OkaneDatabaseMigrationTest {
         db.execSQL(insert)   // same notification delivered twice
 
         db.query("SELECT COUNT(*) FROM transactions").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(1, c.getInt(0))
+        }
+    }
+
+    @Test
+    fun migratesTo5_addingTheInboxWithoutTouchingData() {
+        seedV2()
+
+        val db = helper.runMigrationsAndValidate(
+            TEST_DB, 5, true, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5
+        )
+
+        db.query("SELECT COUNT(*) FROM transactions").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(2, c.getInt(0))
+        }
+        db.query("SELECT COUNT(*) FROM raw_notifications").use { c ->
+            assertTrue(c.moveToFirst())
+            assertEquals(1, c.getInt(0))
+        }
+
+        // The inbox starts empty and accepts a suggestion with a NULL title.
+        db.execSQL(
+            """
+            INSERT INTO capture_suggestions
+                (sourceApp, packageName, channel, title, text, amount, direction, type,
+                 walletId, toWalletId, counterparty, postedAt, createdAt, status)
+            VALUES ('Bale', 'com.google.android.apps.messaging', 'SMS', NULL,
+                    'Dana masuk Rp2.000.000', 2000000, 'IN', 'IN', 1, NULL, NULL, 1, 1, 'PENDING')
+            """.trimIndent()
+        )
+        db.query("SELECT COUNT(*) FROM capture_suggestions WHERE status = 'PENDING'").use { c ->
             assertTrue(c.moveToFirst())
             assertEquals(1, c.getInt(0))
         }

@@ -11,6 +11,8 @@ import androidx.room.RoomDatabase
  *            MANUAL/NOTIFICATION enums, categoryId and occurredAt; categories added.
  * version 4: wallets. transactions gain walletId/toWalletId and the TRANSFER
  *            type; categories gain type + isArchived; wallets table added.
+ * version 5: capture_suggestions, the "Perlu konfirmasi" inbox for
+ *            notifications that need the user's confirmation.
  *
  * Every step is a real migration. Destructive fallback is off, because the
  * database holds data that cannot be recreated: manually entered transactions,
@@ -26,8 +28,9 @@ import androidx.room.RoomDatabase
         CategoryEntity::class,
         WalletEntity::class,
         RawNotification::class,
+        CaptureSuggestionEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = true
 )
 abstract class OkaneDatabase : RoomDatabase() {
@@ -35,4 +38,5 @@ abstract class OkaneDatabase : RoomDatabase() {
     abstract fun categoryDao(): CategoryDao
     abstract fun walletDao(): WalletDao
     abstract fun rawNotificationDao(): RawNotificationDao
+    abstract fun captureDao(): CaptureDao
 }

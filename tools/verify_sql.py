@@ -10,9 +10,12 @@ between a hand-written migration and Room's generated schema otherwise only
 surfaces as a crash on a user's device, after their data is already at risk.
 
   1. Build a v2 database, run MIGRATION_2_3 then MIGRATION_3_4.
-  2. Compare the result against Room's exported app/schemas/**/4.json.
+  2. Compare the result against Room's exported app/schemas/**/4.json, then
+     run MIGRATION_4_5 and compare against 5.json.
   3. Check the data mapping (KREDIT->IN, app name -> sourceApp, wallet assignment).
   4. Run WalletDao's balance SQL over fixtures with transfers both ways.
+  5. Prepare every @Query in every DAO against the final schema, and run the
+     capture queries whose behaviour matters (NULL titles, guarded updates).
 
 The device-side equivalent is app/src/androidTest/.../OkaneDatabaseMigrationTest,
 which needs `gradlew connectedDebugAndroidTest`.
@@ -26,6 +29,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent / "app"
 SRC = ROOT / "src/main/java/com/example/okane/data/local"
 SCHEMA_4 = next((ROOT / "schemas").rglob("4.json"))
+SCHEMA_5 = next((ROOT / "schemas").rglob("5.json"))
 
 failures = []
 
@@ -66,9 +70,12 @@ def extract_exec_sql(kotlin: str, start: int, end: int):
 migrations_kt = (SRC / "Migrations.kt").read_text(encoding="utf-8")
 m23_at = migrations_kt.index("val MIGRATION_2_3")
 m34_at = migrations_kt.index("val MIGRATION_3_4")
+m45_at = migrations_kt.index("val MIGRATION_4_5")
 MIGRATION_2_3 = extract_exec_sql(migrations_kt, m23_at, m34_at)
-MIGRATION_3_4 = extract_exec_sql(migrations_kt, m34_at, len(migrations_kt))
-print(f"extracted {len(MIGRATION_2_3)} statements for 2->3, {len(MIGRATION_3_4)} for 3->4")
+MIGRATION_3_4 = extract_exec_sql(migrations_kt, m34_at, m45_at)
+MIGRATION_4_5 = extract_exec_sql(migrations_kt, m45_at, len(migrations_kt))
+print(f"extracted {len(MIGRATION_2_3)} statements for 2->3, {len(MIGRATION_3_4)} for 3->4,"
+      f" {len(MIGRATION_4_5)} for 4->5")
 
 wallet_dao_kt = (SRC / "WalletDao.kt").read_text(encoding="utf-8")
 balance_queries = [q for q in re.findall(r'@Query\(\s*"""(.*?)"""', wallet_dao_kt, re.S)
@@ -110,16 +117,28 @@ db.commit()
 
 # --- 2. schema equivalence vs Room's export ----------------------------------
 
-print("\nschema vs Room schemas/4.json")
-schema = json.loads(SCHEMA_4.read_text(encoding="utf-8"))
-
 # Compared via PRAGMA rather than SQL text: ALTER TABLE ... RENAME rewrites the
 # stored DDL (quoting changes, whitespace is preserved verbatim), so string
 # equality would flag cosmetic differences Room does not care about. Room
 # validates columns, affinities, nullability, the primary key and the indices —
 # so that is what is checked here.
 
-for entity in schema["database"]["entities"]:
+
+def compare_schema(schema_path, version):
+    print(f"\nschema vs Room schemas/{schema_path.name}")
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    check(f"schema file is version {version}", schema["database"]["version"], version)
+    expected_tables = sorted(e["tableName"] for e in schema["database"]["entities"])
+    actual_tables = sorted(
+        r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall()
+        if not r[0].startswith("sqlite_") and r[0] != "room_master_table"
+    )
+    check(f"v{version} tables", actual_tables, expected_tables)
+    for entity in schema["database"]["entities"]:
+        compare_entity(entity)
+
+
+def compare_entity(entity):
     table = entity["tableName"]
 
     expected_cols = [
@@ -152,6 +171,8 @@ for entity in schema["database"]["entities"]:
     )
     check(f"table {table} indices", actual_ix, expected_ix)
 
+
+compare_schema(SCHEMA_4, 4)
 # --- 3. data mapping ---------------------------------------------------------
 
 print("\ndata preserved and remapped")
@@ -174,6 +195,16 @@ check("discovery samples survive",
       db.execute("SELECT COUNT(*) FROM raw_notifications").fetchone()[0], 1)
 check("categories table empty (onboarding seeds it)",
       db.execute("SELECT COUNT(*) FROM categories").fetchone()[0], 0)
+
+print("\nrunning migration 4 -> 5")
+for stmt in MIGRATION_4_5:
+    db.execute(stmt)
+db.commit()
+compare_schema(SCHEMA_5, 5)
+check("4->5 leaves transactions untouched",
+      db.execute("SELECT COUNT(*) FROM transactions").fetchone()[0], 2)
+check("4->5 leaves discovery samples untouched",
+      db.execute("SELECT COUNT(*) FROM raw_notifications").fetchone()[0], 1)
 
 # --- 4. balance arithmetic ---------------------------------------------------
 
@@ -226,6 +257,71 @@ check("all-wallet total includes archived", sum(r[6] for r in result), 1235000)
 
 one = db.execute(BALANCE_ONE, {"walletId": 1}).fetchone()
 check("single-wallet query agrees", one[0], 300000)
+
+# --- 5. every DAO query against the final schema ------------------------------
+
+print("\nDAO queries")
+
+
+def dao_queries(path):
+    """(name, sql) for each @Query in a DAO file, single-line or triple-quoted."""
+    text = path.read_text(encoding="utf-8")
+    found = []
+    for m in re.finditer(r'@Query\(\s*(?:"""(.*?)"""|"((?:[^"\\]|\\.)*)")\s*\)\s*(?:suspend\s+)?fun\s+(\w+)', text, re.S):
+        found.append((f"{path.stem}.{m.group(3)}", m.group(1) or m.group(2)))
+    return found
+
+
+queries = [q for dao in sorted(SRC.glob("*Dao.kt")) for q in dao_queries(dao)]
+check("found DAO queries", len(queries) > 30, True)
+for name, sql in queries:
+    params = {p: 1 for p in re.findall(r":(\w+)", sql)}
+    db.execute("SAVEPOINT probe")
+    try:
+        db.execute(sql, params).fetchall()
+        ok = True
+    except sqlite3.Error as e:
+        ok = str(e)
+    db.execute("ROLLBACK TO probe")
+    db.execute("RELEASE probe")
+    check(f"{name} runs", ok, True)
+
+capture_dao = {name.split(".")[1]: sql for name, sql in queries if name.startswith("CaptureDao.")}
+db.execute(
+    "INSERT INTO capture_suggestions (sourceApp, packageName, channel, title, text, amount,"
+    " direction, type, walletId, toWalletId, counterparty, postedAt, createdAt, status)"
+    " VALUES ('Bale','com.google.android.apps.messaging','SMS',NULL,'Dana masuk Rp1',1,"
+    " 'IN','IN',1,NULL,NULL,1000,1000,'PENDING')"
+)
+same = capture_dao["countSameSuggestion"]
+check("NULL title matches NULL title",
+      db.execute(same, {"sourceApp": "Bale", "title": None, "text": "Dana masuk Rp1",
+                        "startMillis": 0, "endMillis": 2000}).fetchone()[0], 1)
+check("a title does not match NULL",
+      db.execute(same, {"sourceApp": "Bale", "title": "BTN", "text": "Dana masuk Rp1",
+                        "startMillis": 0, "endMillis": 2000}).fetchone()[0], 0)
+resolve = capture_dao["resolve"]
+check("resolve changes a pending row",
+      db.execute(resolve, {"id": 1, "status": "ACCEPTED", "transactionId": 9, "resolvedAt": 5}).rowcount, 1)
+check("resolve leaves a resolved row alone",
+      db.execute(resolve, {"id": 1, "status": "DISMISSED", "transactionId": None, "resolvedAt": 6}).rowcount, 0)
+
+tx(70000, "OUT", 1)  # MANUAL
+manual_id = db.execute("SELECT MAX(id) FROM transactions").fetchone()[0]
+convert = capture_dao["convertToTransfer"]
+check("a hand-typed row is never converted",
+      db.execute(convert, {"id": manual_id, "fromWalletId": 1, "toWalletId": 2, "amount": 1}).rowcount, 0)
+db.execute(
+    "INSERT INTO transactions (amount,type,walletId,toWalletId,categoryId,occurredAt,createdAt,"
+    "source,note,sourceApp,merchant) VALUES (101000,'OUT',2,NULL,NULL,7,7,'NOTIFICATION','n','Livin',NULL)"
+)
+note_id = db.execute("SELECT MAX(id) FROM transactions").fetchone()[0]
+check("a notification row converts to a transfer",
+      db.execute(convert, {"id": note_id, "fromWalletId": 2, "toWalletId": 3, "amount": 100000}).rowcount, 1)
+check("converted row",
+      db.execute("SELECT type, walletId, toWalletId, amount, categoryId FROM transactions WHERE id = ?",
+                 (note_id,)).fetchone(), ("TRANSFER", 2, 3, 100000, None))
+db.rollback()
 
 print()
 if failures:
