@@ -19,16 +19,20 @@ import com.example.okane.ui.theme.OkaneMotion
  * The app's top-level surfaces. Still no navigation library: MainActivity
  * derives one of these from a few booleans and animates between them.
  */
-enum class OkaneRoute { Splash, Onboarding, Main, Keypad, Settings }
+enum class OkaneRoute { Onboarding, Main, Keypad, Settings }
 
-/** The routing precedence, kept pure so it can be unit-tested. */
+/**
+ * The routing precedence, kept pure so it can be unit-tested.
+ *
+ * There is no animated splash route: the system splash covers start-up, and
+ * Home's own landscape is the first thing worth looking at. Skipping a
+ * second, decorative splash saves almost two seconds on every cold start.
+ */
 fun okaneRoute(
-    splashDone: Boolean,
     onboardingCompleted: Boolean,
     showSettings: Boolean,
     showKeypad: Boolean,
 ): OkaneRoute = when {
-    !splashDone -> OkaneRoute.Splash
     !onboardingCompleted -> OkaneRoute.Onboarding
     showSettings -> OkaneRoute.Settings
     showKeypad -> OkaneRoute.Keypad
@@ -42,7 +46,6 @@ fun okaneRoute(
  *
  * - The keypad rises from below like a sheet and sinks back down.
  * - Settings slides in from the side, a step deeper, and slides back.
- * - Leaving the splash, the app settles up to full size.
  *
  * On the way back the leaving surface stays on top, so it visibly moves away
  * instead of the destination popping over it.
@@ -51,11 +54,6 @@ fun AnimatedContentTransitionScope<OkaneRoute>.okaneRouteTransition(): ContentTr
     val from = initialState
     val to = targetState
     val transform = when {
-        from == OkaneRoute.Splash ->
-            (fadeIn(fadeThroughIn(OkaneMotion.LONG)) +
-                scaleIn(OkaneMotion.enter(OkaneMotion.LONG + 120), initialScale = 0.94f)) togetherWith
-                fadeOut(fadeThroughOut())
-
         to == OkaneRoute.Keypad ->
             (slideInVertically(OkaneMotion.enter(OkaneMotion.LONG)) { it / 6 } +
                 fadeIn(fadeThroughIn())) togetherWith

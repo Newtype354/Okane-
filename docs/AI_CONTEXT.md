@@ -43,7 +43,8 @@ bank.
 - Hilt 2.59.2 untuk dependency injection
 - KSP untuk Room dan Hilt code generation
 - SharedPreferences wrapper untuk onboarding dan toggle sumber notifikasi
-- Glance 1.1.1 hanya untuk spike widget yang masih ditunda
+- Tanpa Glance/widget dan tanpa material-icons: dependensi dijaga seminimal
+  mungkin (lihat bagian 6.1)
 - Compose motion: `AnimatedContent`, `animateItem`, `graphicsLayer` (lihat bagian 6)
 - `minSdk 26`, `targetSdk 33`, `compileSdk 36.1`
 - Java 11
@@ -142,8 +143,9 @@ Compose UI ← ViewModel (StateFlow)
 ### Entry point
 
 - `OkaneApp.kt`: hanya membawa `@HiltAndroidApp`.
-- `MainActivity.kt`: Activity tunggal dan router aplikasi. Mengatur splash,
-  onboarding, keypad full-screen, dan main tab screen tanpa Navigation Compose.
+- `MainActivity.kt`: Activity tunggal dan router aplikasi. Mengatur onboarding,
+  keypad full-screen, pengaturan, dan main tab screen tanpa Navigation Compose.
+  Tidak ada splash animasi; splash sistem Android sudah cukup.
 - `OkaneNotificationListenerService.kt`: entry point independen yang tetap
   berjalan saat UI tidak terbuka.
 
@@ -196,15 +198,15 @@ Layering tidak sepenuhnya murni: `SummaryCalculator` membaca
 `MainActivity` memilih surface dalam urutan berikut:
 
 ```text
-fresh launch
-  → animated splash
+fresh launch (splash sistem)
   → onboarding jika belum selesai
   → main screen
-       ├─ Home
-       ├─ Riwayat
+       ├─ Home      (sapaan + total uang saja)
+       ├─ Riwayat   ("Perlu konfirmasi" + riwayat)
        └─ Dompetku → Pengaturan (secondary screen)
 
-Home FAB (+) → keypad full-screen → close/commit → kembali ke main screen
+Tombol bulat (+) di samping navigation bar, ada di semua tab
+  → keypad full-screen → close/commit → kembali ke main screen
 ```
 
 Keypad dan onboarding adalah full-screen surface tersendiri. Perubahan visual
@@ -217,37 +219,41 @@ berdasarkan pagi/siang/malam; jangan hardcode `Ohayou` pada UI.
 ## 6. Home screen dan design system "calm"
 
 Tampilan mengikuti gaya aplikasi mindfulness: bersih, minimalis, banyak ruang
-kosong, sudut membulat, dan ilustrasi yang menenangkan (batu tumpuk dan daun).
-Render referensi dari kode asli ada di `design/calm/` (PNG per layar) dan
-`design/calm/motion/` (MP4 animasi). Mockup lama di `design/home-*.png` sudah
-tidak berlaku.
+kosong, sudut membulat, dan ilustrasi yang menenangkan. Render referensi dari
+kode asli ada di `design/calm/` (PNG per layar) dan `design/calm/motion/` (MP4
+animasi). Mockup lama di `design/home-*.png` sudah tidak berlaku.
 
-Home (`ui/dashboard/`) bisa di-scroll vertikal dan berisi, dari atas:
+**Home sengaja sangat minimalis: hanya sapaan dan total uang.** Keputusan
+pemilik produk. Jangan menambah kartu, tile, atau statistik ke Home tanpa
+keputusan eksplisit.
 
-- Greeting dinamis dari `Greeting.now()` (jangan hardcode) + subjudul, dengan
-  tombol bulat Pengaturan di kanan atas.
-- `TotalMoneyCard`: label **“Total uangmu”** dan total seluruh saldo wallet dari
-  flow saldo yang sama dengan Dompetku (initialBalance + semua transaksi,
-  wallet aktif dan archived, transfer netral), dengan ilustrasi batu tumpuk.
-- Kartu peach **“N transaksi perlu konfirmasi”** (tag `homeCaptureInbox`),
-  hanya muncul jika ada saran dari notifikasi. Kartu membuka lembar review
-  satu per satu (`ui/capture/`).
-- “Catat cepat”: empat tile pastel — Catat (buka keypad mode Masuk/Keluar,
-  tag `homeAddTransaction`), Pindah (keypad mode transfer), Riwayat, Dompet.
-- “Kebiasaanmu”: kartu catatan beruntun (streak) dengan cincin progres menuju
-  milestone berikutnya. Logika di `domain/RecordingStreak.kt`: hari lokal dari
-  `occurredAt`; streak belum putus sebelum hari berakhir.
-- “Bulan ini”: pemasukan vs pengeluaran bulan berjalan (transfer dikecualikan,
-  memakai `SummaryCalculator`).
-- Kartu kutipan harian dari `domain/CalmQuotes.kt` (peribahasa atau kalimat
-  Okane sendiri; jangan mengatribusikan kutipan ke orang nyata).
+- Latar penuh: `ui/illustration/Landscape.kt` (`CalmLandscape`). Isinya langit
+  luas, satu awan, bukit hijau bergelombang, dan satu pohon di puncak bukit,
+  terinspirasi foto wallpaper yang tenang. Semuanya digambar dengan kode, tanpa
+  bitmap. Palet mengikuti waktu (`SkyTime`, jam sama dengan `Greeting`): pagi
+  berkabut hangat, siang biru cerah, malam biru tua dengan bulan sabit dan
+  bintang. Path dan brush dibuat sekali per ukuran (`drawWithCache`) dan
+  gambarnya statis.
+- Teks putih di tengah atas (tag `homeGreeting`, `homeTotal`):
+  - sapaan dari `Greeting.now()`, jangan di-hardcode;
+  - total dengan `AnimatedAmountText` dan label **“Total uangmu”**. Totalnya
+    sama dengan total di Dompetku: initialBalance + semua transaksi, wallet
+    aktif dan archived, transfer netral.
+  - Ukuran huruf mengecil hanya untuk nominal miliaran (`amountSize`).
+- Ikon status bar berubah terang saat Home tampil (diatur `MainActivity`), dan
+  gelap lagi di permukaan lain.
+- Tidak ada lagi tile Catat cepat, streak, ringkasan bulan, atau kutipan.
+  Kode `RecordingStreak`, `CalmQuotes`, `HomePresenter`, dan `SummaryCalculator`
+  sudah dihapus. Ringkasan bulan tetap ada di Riwayat.
 
-Data non-saldo Home berasal dari `TransactionViewModel.homeUiState`
-(`HomePresenter`, pure dan teruji), yang ikut diperbarui saat tengah malam.
-
-Bottom navigation: bar putih mengambang dengan tiga tujuan **Home**,
-**Riwayat**, **Dompetku**. Indikator pil mengikuti posisi geser pager secara
-langsung. Pengaturan bisa dibuka dari Home dan dari header Dompetku.
+**Navigasi:** bar putih mengambang dengan tiga tujuan (**Home**, **Riwayat**,
+**Dompetku**) dan, di sampingnya, **tombol bulat putih (+)** dengan ikon sage
+(tag `rootAddTransaction`). Tombol ini adalah satu-satunya pintu ke keypad dan
+tersedia di setiap tab, sehingga keypad tetap jalur utama. Indikator pil
+mengikuti posisi geser pager secara langsung. Titik peach di ikon Riwayat
+menandakan ada saran di "Perlu konfirmasi". Kartu "Perlu konfirmasi" (tag
+`captureInboxCard`) berada di atas daftar Riwayat. Pengaturan dibuka dari
+header Dompetku.
 
 Design system (`ui/theme/`, `ui/components/Calm.kt`):
 
@@ -258,11 +264,11 @@ Design system (`ui/theme/`, `ui/components/Calm.kt`):
   color sengaja tidak aktif.
 - Tipografi: Plus Jakarta Sans lokal untuk seluruh style Material.
 - Ikon: garis tipis di `ui/icons/OkaneIcons.kt` (tanpa material-icons-extended).
-- Ilustrasi: digambar dengan Canvas di `ui/illustration/CalmIllustrations.kt`,
-  bisa dianimasikan lewat parameter `progress`. Tidak ada bitmap.
-- Komponen: `CalmCard`, `PastelTile`, `CalmChip`, `CalmButton`/`CalmPrimaryButton`,
-  `CalmFab`, `CalmBottomSheet`, `AnimatedAmountText`, `ProgressRing`. Pakai ini
-  alih-alih menata komponen Material ad hoc.
+- Ilustrasi: digambar dengan Canvas di `ui/illustration/`: lanskap Home, batu
+  tumpuk dan daun untuk empty state/onboarding. Tidak ada bitmap.
+- Komponen: `CalmCard`, `CalmChip`, `CalmButton`/`CalmPrimaryButton`,
+  `CalmFab`, `CalmBottomSheet`, `AnimatedAmountText`. Pakai ini alih-alih
+  menata komponen Material ad hoc.
 
 Motion (`ui/theme/Motion.kt`, `OkaneMotion`): satu kosakata easing dan durasi
 (200–450 ms, emphasized decelerate). Aturan agar tetap halus:
@@ -279,6 +285,24 @@ Motion (`ui/theme/Motion.kt`, `OkaneMotion`): satu kosakata easing dan durasi
 
 Splash Android 12+ dan ikon launcher memakai batu tumpuk sage yang sama
 (`ic_splash_logo.xml`, `ic_launcher_*.xml`), dengan latar `@color/paper`.
+
+### 6.1 Ringan sebagai prinsip
+
+Aplikasi harus tetap seringan mungkin. Pertahankan hal berikut:
+
+- **Tanpa bitmap** untuk ilustrasi dan ikon; gambar dengan Canvas/vector.
+- **Font di-subset** ke huruf Latin: 4 weight Plus Jakarta Sans (OFL), total
+  sekitar 125 KB. Karakter di luar subset jatuh ke font sistem. Jika perlu
+  karakter baru, subset ulang dari font asli dengan `pyftsubset` dan
+  pertahankan fitur `tnum`.
+- **Rilis memakai R8** (`isMinifyEnabled` + `isShrinkResources`). Setiap
+  perubahan dependensi perlu diuji di build release.
+- **Tanpa splash animasi** dan tanpa animasi berulang di latar. Lanskap Home
+  statis.
+- Listener notifikasi membuang notifikasi aplikasi yang tidak dikenal sebelum
+  teksnya dibaca.
+- Jangan menambah dependensi besar (material-icons-extended, Glance, image
+  loader) tanpa alasan kuat.
 
 ## 7. Model database
 
@@ -403,16 +427,12 @@ Onboarding berjalan sekali dan mempunyai tiga slide. State disimpan di
 ## 10. Ringkasan dan query penting
 
 - `TransactionViewModel.transactions`: semua transaksi, terbaru dahulu.
-- `summary`: dihitung ulang dari transaksi untuk bulan berjalan.
+- `historyUiState`: filter, ringkasan periode (pemasukan, pengeluaran, selisih;
+  transfer dikecualikan), dan pengelompokan per hari untuk Riwayat. Ikut
+  diperbarui saat tengah malam.
 - `walletBalances`: hasil query gabungan wallet + transaksi.
 - `uncategorised`: `categoryId IS NULL AND type != TRANSFER`.
-- `recent`: maksimal 15 transaksi terbaru.
-- Transfer dikecualikan dari income/expense dan headline.
-- `DashboardSummary.netThisMonth = incomeThisMonth - expensesThisMonth`.
-
-Catatan: `YearMonth.now()` dibaca ketika flow summary emit. Pergantian bulan
-akan terlihat ketika aplikasi direstart atau ada emission transaksi berikutnya;
-belum ada ticker khusus tepat tengah malam.
+- `WalletsUiState.totalMoney`: total semua wallet; inilah angka di Home.
 
 ## 11. Batasan yang disengaja
 
@@ -425,15 +445,14 @@ seolah sudah ada:
 - arithmetic pada keypad;
 - recurring monthly-fee scheduler;
 - management UI lengkap untuk rename/archive/reorder wallet dan category;
-- production home-screen widget;
+- home-screen widget (spike Glance sudah dihapus; ada di riwayat git);
 - pencatatan otomatis selain top up GoPay (format lain masuk "Perlu
   konfirmasi" sampai template-nya ditulis dari sampel asli);
 - template yang dipelajari dari konfirmasi pengguna, OCR bukti transfer, dan
   impor e-statement (Fase B–D di `docs/riset-pencatatan-otomatis.md`).
 
 Repository sudah mempunyai sebagian operasi wallet/category management, tetapi
-belum semuanya dapat dijangkau dari UI. Widget Glance yang terdaftar adalah
-throwaway latency spike, bukan fitur produksi.
+belum semuanya dapat dijangkau dari UI.
 
 ## 12. Testing dan migration safety
 
@@ -448,7 +467,7 @@ python tools/verify_sql.py
 .\gradlew.bat connectedDebugAndroidTest  # memerlukan device/emulator
 ```
 
-Test JVM mencakup keypad, formatter, greeting, summary calculator, rupiah
+Test JVM mencakup keypad, formatter, greeting, presenter Riwayat, rupiah
 amount parser, onboarding state, dan seluruh pipeline capture: katalog sumber,
 template GoPay (sampel asli), heuristik (teks sintetis), engine,
 `CaptureProcessor` dengan store palsu (dedupe, transfer, biaya admin), ekspor
@@ -481,7 +500,7 @@ berikutnya.
 |---|---|
 | Build | `app/build.gradle.kts`, `gradle/libs.versions.toml` |
 | Routing | `MainActivity.kt`, `ui/OkaneMainScreen.kt` |
-| Home | `ui/dashboard/DashboardScreen.kt`, `HomeHero.kt`, `HomeUiState.kt`, `domain/RecordingStreak.kt` |
+| Home | `ui/dashboard/DashboardScreen.kt`, `ui/illustration/Landscape.kt` |
 | Design system | `ui/theme/`, `ui/components/Calm.kt`, `ui/icons/`, `ui/illustration/` |
 | Routing animasi | `ui/navigation/OkaneRoute.kt` |
 | Keypad | `ui/keypad/KeypadScreen.kt`, `KeypadViewModel.kt`, `domain/keypad/KeypadState.kt` |
@@ -541,9 +560,10 @@ Ketika diminta merancang atau mengevaluasi perubahan:
    uncategorised recovery, dan transfer pada perubahan UI/data.
 7. Untuk perubahan schema, selalu sertakan entity + DAO + migration + exported
    schema + test plan.
-8. Untuk perubahan Home, gunakan total saldo wallet all-time dari flow
-   repository yang juga dipakai Dompetku, jangan hardcode greeting, dan pakai
-   komponen serta `OkaneMotion` dari design system calm (bagian 6).
+8. Home hanya berisi sapaan dan total uang di atas lanskap (bagian 6). Gunakan
+   total saldo wallet all-time yang juga dipakai Dompetku, dan jangan
+   hardcode greeting. Fitur baru ditaruh di Riwayat, Dompetku, atau
+   Pengaturan, bukan di Home. Jaga prinsip ringan (bagian 6.1).
 9. Jangan mengubah calculator atau onboarding hanya karena sedang mengubah home
    screen, kecuali cakupan tugas secara eksplisit mencakupnya.
 

@@ -162,7 +162,7 @@ class OkaneMainScreenTest {
     }
 
     @Test
-    fun walletGearOpensSettingsAndHomeFabStillOpensKeypadRoute() {
+    fun walletGearOpensSettingsAndAddButtonOpensKeypadRoute() {
         composeRule.onNodeWithTag("rootNavigation-WALLETS").performClick()
         composeRule.waitForIdle()
 
@@ -173,7 +173,7 @@ class OkaneMainScreenTest {
 
         composeRule.onNodeWithTag("rootNavigation-DASHBOARD").performClick()
         composeRule.waitForIdle()
-        composeRule.onNodeWithTag("homeAddTransaction").performClick()
+        composeRule.onNodeWithTag("rootAddTransaction").performClick()
         composeRule.runOnIdle {
             assertTrue(addTransactionOpened)
         }

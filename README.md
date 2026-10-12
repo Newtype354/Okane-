@@ -24,6 +24,22 @@ AndroidX releases from around June 2026 (`androidx.core` 1.19.0 and later)
 require `compileSdk 37` and fail `checkDebugAarMetadata`. `coreKtx` is pinned to
 `1.18.0` for this reason — decline IDE suggestions to bump it.
 
+## Keeping it light
+
+- **No bitmaps.** The landscape, stones and icons are drawn in code: no image
+  weight in the APK, sharp on every screen. The landscape builds its paths
+  once per size and is static afterwards.
+- **Fonts are subset** to Latin (Plus Jakarta Sans, OFL; 4 weights, about
+  125 KB in total instead of 528 KB). Characters outside the subset fall back
+  to the system font.
+- **Release builds run R8** with resource shrinking (`isMinifyEnabled`,
+  `isShrinkResources`). Smoke-test a release build on a device after
+  dependency changes.
+- **No decorative splash.** The system splash covers start-up and Home is the
+  first screen.
+- **The notification listener stays cheap**: notifications from apps Okane does
+  not track are dropped before their text is read or stored.
+
 ## Verifying
 
 ```powershell
@@ -47,10 +63,14 @@ against.
 ## Visual design
 
 The UI follows a calm, mindfulness-app style: warm paper background, white
-cards with hairlines, a sage primary, soft pastel tiles, thin line icons and
-Canvas-drawn stone and leaf illustrations. Motion is deliberate and shared
-(`ui/theme/Motion.kt`): fade-through between surfaces, press feedback and
-entrances on `graphicsLayer`, animated list items and amounts.
+cards with hairlines, a sage primary, thin line icons and Canvas-drawn
+illustrations. Home is deliberately bare — a greeting and the total of every
+wallet over a landscape of sky, rolling hills and one tree, drawn in code, whose
+sky follows the time of day (misty morning, clear day, starry night). Recording
+is one tap away from every page through the round add button beside the
+navigation bar. Motion is deliberate and shared (`ui/theme/Motion.kt`):
+fade-through between surfaces, press feedback and entrances on `graphicsLayer`,
+animated list items and amounts.
 
 Renders of every screen, produced from the real Compose code, live in
 `design/calm/`, with short motion clips in `design/calm/motion/`. The design
@@ -176,11 +196,9 @@ calculator, the behaviour is not.
 **No budgets, goals, charts, or export.** Out of scope for this wave.
 
 **Home screen widget deferred.** A Glance widget was designed and a latency
-spike written for it, then deferred rather than cancelled. Widgets render as
-`RemoteViews` in the launcher process, so every keypress is an inter-process
-round trip; the spike exists to measure tap-to-pixel latency before committing
-to a keypad that depends on it. The `KeypadState` seam described above is
-preserved so adding the widget later needs no rework.
+spike written for it, then deferred. The spike and the Glance dependency were
+removed to keep the app light (they remain in git history); the `KeypadState`
+seam described above is preserved so adding a widget later needs no rework.
 
 **No management UI for wallets and categories yet.** They can be created during
 onboarding and inline from the calculator screen's pickers, so an empty list is

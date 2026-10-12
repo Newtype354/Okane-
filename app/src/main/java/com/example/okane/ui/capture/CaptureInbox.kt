@@ -57,8 +57,9 @@ import com.example.okane.ui.theme.TransferBlue
 import com.example.okane.ui.theme.TransferSoft
 
 /**
- * Home's quiet nudge: notifications waiting for a yes or no. Hidden when the
- * inbox is empty, so a fully automatic day leaves Home unchanged.
+ * The quiet nudge at the top of Riwayat: notifications waiting for a yes or
+ * no. Hidden when the inbox is empty, so a fully automatic day leaves the
+ * page unchanged.
  */
 @Composable
 fun CaptureInboxCard(
@@ -78,7 +79,7 @@ fun CaptureInboxCard(
             modifier = Modifier
                 .padding(top = 16.dp)
                 .fillMaxWidth()
-                .testTag("homeCaptureInbox"),
+                .testTag("captureInboxCard"),
             color = Peach,
             border = false,
             onClick = onOpen,

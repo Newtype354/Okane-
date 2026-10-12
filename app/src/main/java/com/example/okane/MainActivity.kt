@@ -18,20 +18,22 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.pager.PagerState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.example.okane.domain.capture.BatteryGuide
 import com.example.okane.ui.OkaneMainScreen
 import com.example.okane.ui.capture.CaptureViewModel
 import com.example.okane.ui.rememberOkaneRootPagerState
-import com.example.okane.ui.splash.OkaneSplashScreen
 import com.example.okane.ui.SettingsViewModel
 import com.example.okane.ui.TransactionViewModel
 import com.example.okane.ui.keypad.KeypadScreen
@@ -82,22 +84,15 @@ class MainActivity : ComponentActivity() {
             statusBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.light(LIGHT_NAV_SCRIM, DARK_NAV_SCRIM),
         )
-        // Only *check* the permission here. The request dialog itself waits
-        // until the splash animation is over so it never covers the logo.
         postNotificationsGranted = isPostNotificationsGranted()
         setContent {
             OkaneTheme {
                 val historyUiState by transactionViewModel.historyUiState.collectAsState()
-                val homeUiState by transactionViewModel.homeUiState.collectAsState()
                 val walletsUiState by walletsViewModel.uiState.collectAsState()
                 val sourceToggles by settingsViewModel.sourceToggles.collectAsState()
                 val capturedCount by settingsViewModel.capturedSampleCount.collectAsState()
                 val captureHealth by settingsViewModel.health.collectAsState()
                 val captureInbox by captureViewModel.uiState.collectAsState()
-
-                // rememberSaveable survives rotation, so the splash only
-                // plays on a fresh launch, not on every configuration change.
-                var splashDone by rememberSaveable { mutableStateOf(false) }
 
                 // Surface B is a full-screen takeover rather than a tab: it has
                 // its own close affordance and no bottom bar. Still no
@@ -115,11 +110,21 @@ class MainActivity : ComponentActivity() {
                 val onboardingCompleted by onboardingViewModel.completed.collectAsState()
 
                 val route = okaneRoute(
-                    splashDone = splashDone,
                     onboardingCompleted = onboardingCompleted,
                     showSettings = showSettings,
                     showKeypad = showKeypad,
                 )
+
+                // Home sits under a deep sky, so the status bar icons turn
+                // light there and dark again on every paper surface. Read in
+                // an effect, so swiping pages never recomposes this root.
+                LaunchedEffect(route) {
+                    snapshotFlow { route == OkaneRoute.Main && rootPagerState.currentPage == 0 }
+                        .collect { onSky ->
+                            WindowCompat.getInsetsController(window, window.decorView)
+                                .isAppearanceLightStatusBars = !onSky
+                        }
+                }
 
                 // Each surface keeps its saveable state (list scroll
                 // positions, open filters) while another one is on screen,
@@ -133,13 +138,6 @@ class MainActivity : ComponentActivity() {
                 ) { target ->
                     saveableStateHolder.SaveableStateProvider(target.name) {
                         when (target) {
-                            OkaneRoute.Splash -> OkaneSplashScreen(
-                                onFinished = {
-                                    splashDone = true
-                                    askForPostNotificationsIfNeeded()
-                                }
-                            )
-
                             OkaneRoute.Onboarding -> {
                                 val onboardingState by onboardingViewModel.uiState.collectAsState()
 
@@ -253,17 +251,12 @@ class MainActivity : ComponentActivity() {
                                     onRestore = walletsViewModel::restoreSelected,
                                     onFeedbackShown = walletsViewModel::consumeFeedback,
                                 ),
-                                homeUiState = homeUiState,
                                 captureInbox = captureInbox,
                                 captureActions = captureViewModel.actions,
-                                // Each entry point opens the keypad in the mode
-                                // its label promises; the typed amount is kept.
+                                // Opens in Keluar/Masuk; the keypad's own toggle
+                                // switches to a transfer. The typed amount is kept.
                                 onAddTransaction = {
                                     keypadViewModel.setTransfer(false)
-                                    showKeypad = true
-                                },
-                                onAddTransfer = {
-                                    keypadViewModel.setTransfer(true)
                                     showKeypad = true
                                 },
                             )
@@ -272,6 +265,8 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+        // Asked once per fresh launch; a rotation does not ask again.
+        if (savedInstanceState == null) askForPostNotificationsIfNeeded()
     }
 
     override fun onResume() {

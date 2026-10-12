@@ -54,7 +54,7 @@ class CaptureInboxTest {
         }
 
         composeRule.onNodeWithText("1 transaksi perlu konfirmasi").assertIsDisplayed()
-        composeRule.onNodeWithTag("homeCaptureInbox").performClick()
+        composeRule.onNodeWithTag("captureInboxCard").performClick()
         composeRule.runOnIdle { assertTrue(opened) }
     }
 
@@ -63,7 +63,7 @@ class CaptureInboxTest {
         composeRule.setContent {
             OkaneTheme { CaptureInboxCard(state = CaptureInboxUiState(), onOpen = {}) }
         }
-        composeRule.onNodeWithTag("homeCaptureInbox").assertDoesNotExist()
+        composeRule.onNodeWithTag("captureInboxCard").assertDoesNotExist()
     }
 
     @Test

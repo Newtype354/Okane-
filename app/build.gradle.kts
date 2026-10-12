@@ -28,7 +28,11 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // R8 strips unused code from Compose, Room, Hilt and coroutines
+            // and drops unused resources: the installed app is a fraction of
+            // the unshrunk size. Every library here ships its own keep rules.
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -76,18 +80,11 @@ dependencies {
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
 
-    // Glance: home screen widgets written in a Compose-like syntax. The widget
-    // runs as RemoteViews inside the launcher process, so only a subset of
-    // Compose is available (no Canvas, no animation, no arbitrary layout).
-    implementation(libs.androidx.glance.appwidget)
-    implementation(libs.androidx.glance.material3)
-
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
-    implementation(libs.androidx.compose.material.icons.core)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.room.testing)

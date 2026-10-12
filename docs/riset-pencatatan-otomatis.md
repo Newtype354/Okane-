@@ -180,7 +180,7 @@ ditangani akan dibuang sebagai repeat.
 | Tabel saran | `data/local/CaptureSuggestionEntity.kt`, `CaptureDao.kt`, `MIGRATION_4_5` |
 | Kesehatan listener | `data/prefs/CaptureHealth.kt` |
 | Listener | `service/OkaneNotificationListenerService.kt` |
-| UI "Perlu konfirmasi" | `ui/capture/` (kartu Home + lembar review) |
+| UI "Perlu konfirmasi" | `ui/capture/` (kartu di Riwayat + lembar review) |
 | UI kesehatan, baterai, bagikan sampel | `ui/settings/SettingsScreen.kt` |
 
 `domain/parser/` kini hanya berisi `AmountParser`. `NotificationParser`,
@@ -258,8 +258,10 @@ Skema ada di `app/schemas/…/5.json`. Diverifikasi oleh `tools/verify_sql.py`
 
 ### 5.6 UI
 
-- **Home → kartu "N transaksi perlu konfirmasi"** (pastel peach) di bawah
-  Total uangmu. Kartu hanya muncul jika ada saran.
+- **Riwayat → kartu "N transaksi perlu konfirmasi"** (pastel peach) di atas
+  daftar. Kartu hanya muncul jika ada saran. Ikon Riwayat di bilah navigasi
+  diberi titik peach selama ada saran. Home sengaja tidak menampilkannya,
+  karena Home hanya berisi sapaan dan total uang.
 - **Lembar review**: satu saran per layar ("1 dari 3"), menampilkan teks asli,
   peringatan duplikat, pilihan Keluar / Masuk / Pindah saldo, Dari/Ke dompet,
   serta tombol **Abaikan** dan **Catat**. Catat baru aktif setelah jenis dan
@@ -269,7 +271,7 @@ Skema ada di `app/schemas/…/5.json`. Diverifikasi oleh `tools/verify_sql.py`
   (notifikasi terakhir, terakhir dicatat otomatis, layanan tersambung), status
   per sumber ("Sebagian otomatis" / "Lewat konfirmasi" · terakhir terlihat),
   dan **Bagikan sampel**.
-- Render ada di `design/calm/13-home-konfirmasi.png`, `14-review.png`, dan
+- Render ada di `design/calm/02-riwayat.png`, `14-review.png`, dan
   `10-pengaturan.png`.
 
 ### 5.7 Privasi
@@ -426,7 +428,7 @@ ada di sampel. Lalu buat prompt untuk Codex.
   (store palsu di memori, termasuk skenario top up GoPay via Mandiri + biaya
   admin), `SampleExportTest`, dan `CaptureInboxPresenterTest`. Tes
   `AmountParserTest`, `FormattersTest`, dan `WalletRepositoryTest` diperluas.
-- Tes UI: `CaptureInboxTest` (kartu Home, lembar review). Tes migrasi:
+- Tes UI: `CaptureInboxTest` (kartu konfirmasi, lembar review). Tes migrasi:
   `migratesTo5_addingTheInboxWithoutTouchingData`.
 - `python tools/verify_sql.py`: rantai migrasi v2→v5 cocok dengan skema
   Room, dan semua `@Query` DAO berjalan di skema v5.

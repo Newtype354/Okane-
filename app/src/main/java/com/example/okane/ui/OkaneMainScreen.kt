@@ -23,6 +23,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -45,15 +46,15 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.example.okane.domain.Greeting
 import com.example.okane.ui.capture.CaptureInboxActions
+import com.example.okane.ui.capture.CaptureInboxCard
 import com.example.okane.ui.capture.CaptureInboxUiState
 import com.example.okane.ui.capture.CaptureReviewSheet
-import com.example.okane.ui.components.CalmFab
 import com.example.okane.ui.components.CalmTokens
+import com.example.okane.ui.components.pressScale
 import com.example.okane.ui.dashboard.DashboardScreen
-import com.example.okane.ui.dashboard.HomeActions
-import com.example.okane.ui.dashboard.HomeUiState
 import com.example.okane.ui.icons.OkaneIcons
 import com.example.okane.ui.theme.OkaneMotion
+import com.example.okane.ui.theme.PeachAccent
 import com.example.okane.ui.transactions.HistoryActions
 import com.example.okane.ui.transactions.HistoryUiState
 import com.example.okane.ui.transactions.TransactionListScreen
@@ -93,8 +94,6 @@ fun OkaneMainScreen(
     walletsUiState: WalletsUiState,
     walletActions: WalletActions,
     onAddTransaction: () -> Unit,
-    onAddTransfer: () -> Unit = onAddTransaction,
-    homeUiState: HomeUiState = HomeUiState(),
     captureInbox: CaptureInboxUiState = CaptureInboxUiState(),
     captureActions: CaptureInboxActions = CaptureInboxActions.None,
 ) {
@@ -144,31 +143,28 @@ fun OkaneMainScreen(
                     OkaneTab.DASHBOARD -> DashboardScreen(
                         greeting = Greeting.now(),
                         totalMoney = walletsUiState.totalMoney,
-                        activeWalletCount = walletsUiState.activeWallets.size,
-                        state = homeUiState,
-                        actions = HomeActions(
-                            onAddTransaction = onAddTransaction,
-                            onAddTransfer = onAddTransfer,
-                            onOpenHistory = { goTo(OkaneTab.TRANSACTIONS) },
-                            onOpenWallets = { goTo(OkaneTab.WALLETS) },
-                            onOpenSettings = walletActions.onOpenSettings,
-                            onOpenCaptureInbox = captureActions.onOpen,
-                        ),
-                        captureInbox = captureInbox,
                         modifier = Modifier.fillMaxSize()
                     )
 
                     OkaneTab.TRANSACTIONS -> RootPageScaffold(
                         title = tab.label,
                         subtitle = "Semua catatan keuanganmu",
-                        onAddTransaction = onAddTransaction,
                     ) { contentModifier ->
-                        TransactionListScreen(
-                            state = historyUiState,
-                            actions = historyActions,
-                            onAddTransaction = onAddTransaction,
-                            modifier = contentModifier
-                        )
+                        Column(modifier = contentModifier) {
+                            // Notifications waiting for a yes or no come first:
+                            // they are history that has not been written yet.
+                            CaptureInboxCard(
+                                state = captureInbox,
+                                onOpen = captureActions.onOpen,
+                                modifier = Modifier.padding(horizontal = CalmTokens.screenPadding),
+                            )
+                            TransactionListScreen(
+                                state = historyUiState,
+                                actions = historyActions,
+                                onAddTransaction = onAddTransaction,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
                     }
 
                     OkaneTab.WALLETS -> WalletsScreen(
@@ -180,15 +176,27 @@ fun OkaneMainScreen(
             }
         }
 
-        CalmNavigationBar(
-            pagerState = pagerState,
-            enabled = navigationEnabled,
-            onSelect = ::goTo,
+        Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
                 .padding(horizontal = 16.dp, vertical = 10.dp),
-        )
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            CalmNavigationBar(
+                pagerState = pagerState,
+                enabled = navigationEnabled,
+                onSelect = ::goTo,
+                pendingCaptures = captureInbox.pendingCount,
+                modifier = Modifier.weight(1f),
+            )
+            // Recording is the app's main job, so it is one tap from every page.
+            AddButton(
+                onClick = onAddTransaction,
+                enabled = navigationEnabled,
+                modifier = Modifier.padding(start = 10.dp),
+            )
+        }
 
         CaptureReviewSheet(state = captureInbox, actions = captureActions)
     }
@@ -207,6 +215,7 @@ private fun CalmNavigationBar(
     pagerState: PagerState,
     enabled: Boolean,
     onSelect: (OkaneTab) -> Unit,
+    pendingCaptures: Int,
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -242,6 +251,7 @@ private fun CalmNavigationBar(
                         tab = tab,
                         selected = pagerState.currentPage == tab.ordinal,
                         enabled = enabled,
+                        badge = tab == OkaneTab.TRANSACTIONS && pendingCaptures > 0,
                         onClick = { onSelect(tab) },
                         modifier = Modifier
                             .weight(1f)
@@ -258,6 +268,7 @@ private fun NavigationItem(
     tab: OkaneTab,
     selected: Boolean,
     enabled: Boolean,
+    badge: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -285,7 +296,24 @@ private fun NavigationItem(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Icon(tab.icon, contentDescription = null, tint = tint, modifier = Modifier.size(24.dp))
+        Box {
+            Icon(tab.icon, contentDescription = null, tint = tint, modifier = Modifier.size(24.dp))
+            if (badge) {
+                // "Perlu konfirmasi" has something waiting.
+                Box(
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .offset(x = 3.dp, y = (-2).dp)
+                        .size(9.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surface)
+                        .padding(1.5.dp)
+                        .clip(CircleShape)
+                        .background(PeachAccent)
+                        .testTag("rootNavigationBadge-${tab.name}")
+                )
+            }
+        }
         Text(
             tab.label,
             style = MaterialTheme.typography.labelMedium,
@@ -295,53 +323,70 @@ private fun NavigationItem(
     }
 }
 
-/** Title + subtitle header and the add button, for root pages without their own chrome. */
+/** Title + subtitle header for root pages without their own chrome. */
 @Composable
 private fun RootPageScaffold(
     title: String,
     subtitle: String,
-    onAddTransaction: () -> Unit,
     content: @Composable (Modifier) -> Unit,
 ) {
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Column(
-                modifier = Modifier
-                    .statusBarsPadding()
-                    .padding(
-                        start = CalmTokens.screenPadding,
-                        end = CalmTokens.screenPadding,
-                        top = 16.dp,
-                        bottom = 4.dp,
-                    ),
-            ) {
-                Text(
-                    title,
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = MaterialTheme.colorScheme.onBackground,
-                )
-                Text(
-                    subtitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 2.dp),
-                )
-            }
-            content(Modifier.weight(1f))
-        }
-        // Manual entry remains reachable from Riwayat as well as Home.
-        CalmFab(
-            onClick = onAddTransaction,
-            icon = OkaneIcons.Plus,
-            contentDescription = "Catat transaksi",
+        Column(
             modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .navigationBarsPadding()
-                .padding(end = 20.dp, bottom = 104.dp),
-        )
+                .statusBarsPadding()
+                .padding(
+                    start = CalmTokens.screenPadding,
+                    end = CalmTokens.screenPadding,
+                    top = 16.dp,
+                    bottom = 4.dp,
+                ),
+        ) {
+            Text(
+                title,
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+        }
+        content(Modifier.weight(1f))
+    }
+}
+
+/** The one way into the keypad: a round button beside the navigation bar. */
+@Composable
+private fun AddButton(
+    onClick: () -> Unit,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val interaction = remember { MutableInteractionSource() }
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier
+            .size(68.dp)
+            .pressScale(interaction, 0.9f)
+            .testTag("rootAddTransaction"),
+        shape = CircleShape,
+        // White like the bar beside it, so the pair reads as one piece of
+        // chrome over the landscape; the sage plus carries the emphasis.
+        color = MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.primary,
+        border = BorderStroke(CalmTokens.hairline, MaterialTheme.colorScheme.outlineVariant),
+        shadowElevation = 8.dp,
+        interactionSource = interaction,
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(OkaneIcons.Plus, contentDescription = "Catat transaksi", modifier = Modifier.size(30.dp))
+        }
     }
 }

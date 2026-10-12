@@ -144,83 +144,6 @@ fun CalmCard(
     }
 }
 
-/** Pastel shortcut tile: icon on top, a title and a quiet subtitle. */
-@Composable
-fun PastelTile(
-    title: String,
-    subtitle: String,
-    icon: ImageVector,
-    container: Color,
-    accent: Color,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val interaction = remember { MutableInteractionSource() }
-    Surface(
-        onClick = onClick,
-        modifier = modifier.pressScale(interaction, 0.95f),
-        shape = RoundedCornerShape(CalmTokens.tileRadius),
-        color = container,
-        contentColor = MaterialTheme.colorScheme.onSurface,
-        interactionSource = interaction,
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(30.dp))
-            Text(
-                title,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 4.dp),
-            )
-            Text(
-                subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
-}
-
-/** A section title with an optional quiet text action on the right. */
-@Composable
-fun SectionTitle(
-    title: String,
-    modifier: Modifier = Modifier,
-    actionLabel: String? = null,
-    onAction: (() -> Unit)? = null,
-) {
-    Row(
-        modifier = modifier.fillMaxWidth().heightIn(min = 32.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            title,
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.weight(1f),
-        )
-        if (actionLabel != null && onAction != null) {
-            Text(
-                actionLabel,
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickableQuiet(onAction)
-                    .padding(horizontal = 6.dp, vertical = 4.dp),
-            )
-        }
-    }
-}
-
 /** Round icon button on a white disc with a hairline, like the reference's avatar. */
 @Composable
 fun CalmIconButton(
@@ -489,6 +412,3 @@ fun CalmBottomSheet(
         content = content,
     )
 }
-
-/** Inline text action with a bounded ripple. */
-private fun Modifier.clickableQuiet(onClick: () -> Unit): Modifier = clickable(onClick = onClick)
